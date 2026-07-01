@@ -18,15 +18,21 @@ pub fn router(state: AppState) -> Router {
             get(catalog_handlers::diseases_by_department),
         )
         .route("/catalog/full", get(catalog_handlers::full_catalog))
-        .route(
-            "/account",
-            post(account_handlers::create_account).get(account_handlers::page_accounts),
-        )
+        .route("/account/register", post(account_handlers::register))
+        .route("/account", get(account_handlers::get_account))
+        .route("/account/page", get(account_handlers::page_accounts))
         .route(
             "/account/:id",
-            get(account_handlers::get_account)
-                .put(account_handlers::update_account)
+            axum::routing::put(account_handlers::update_account)
                 .delete(account_handlers::delete_account),
+        )
+        .route(
+            "/account/:id/logins",
+            post(account_handlers::add_login_account),
+        )
+        .route(
+            "/account/unbind/:id/logins/:login_id",
+            axum::routing::delete(account_handlers::unbind_login_account),
         )
         // 当前先放开 CORS，方便前端本地调试；上线时可以改成白名单域名。
         .layer(CorsLayer::permissive())

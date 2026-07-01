@@ -2,21 +2,132 @@ use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum LoginType {
+    Email,
+    Phone,
+    Wechat,
+    Github,
+}
+
+impl LoginType {
+    // 数据库存的是大写字符串，统一从这里转换，避免 SQL 里散落硬编码。
+    pub fn as_str(self) -> &'static str {
+        match self {
+            LoginType::Email => "EMAIL",
+            LoginType::Phone => "PHONE",
+            LoginType::Wechat => "WECHAT",
+            LoginType::Github => "GITHUB",
+        }
+    }
+
+    // 只有邮箱注册需要本地密码；手机、微信、GitHub 不在本表保存密码。
+    pub fn needs_local_password(self) -> bool {
+        matches!(self, LoginType::Email)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 #[serde(rename_all = "camelCase")]
-pub struct UserInfo {
-    // Option<T> 表示数据库或请求 JSON 里这个字段可以为空。
-    // serde 的 camelCase 保持接口字段名和 Java DTO 一致。
+pub struct UserProfile {
+    // 用户资料只保存实名、医院、科室等业务信息，不保存任何登录凭证。
     pub id: Option<u64>,
     pub user_code: Option<String>,
+    pub real_name: String,
     pub nickname: Option<String>,
-    pub email: Option<String>,
-    pub phone: Option<String>,
-    pub status: Option<i32>,
-    pub version: Option<i32>,
-    pub is_deleted: Option<i32>,
+    pub hospital_id: u64,
+    pub dept_id: u64,
+    pub identity_type: String,
+    pub doctor_cert_no: Option<String>,
+    pub id_card_no: Option<String>,
+    pub status: i32,
+    pub version: i32,
+    pub is_deleted: i32,
     pub created_at: Option<NaiveDateTime>,
     pub updated_at: Option<NaiveDateTime>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase")]
+pub struct UserLoginAccount {
+    // 登录账户是可解绑的绑定关系，同一个用户可以有邮箱、手机、微信、GitHub 等多种入口。
+    pub id: u64,
+    pub user_id: u64,
+    pub login_type: String,
+    pub login_identifier: String,
+    pub third_party_union_id: Option<String>,
+    pub is_verified: i32,
+    pub last_login_at: Option<NaiveDateTime>,
+    pub status: i32,
+    pub is_deleted: i32,
+    pub created_at: Option<NaiveDateTime>,
+    pub updated_at: Option<NaiveDateTime>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountDetail {
+    pub profile: UserProfile,
+    pub login_accounts: Vec<UserLoginAccount>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RegisterResp {
+    pub token: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateAccountReq {
+    // 注册时可以一次性创建多个登录方式，最终每个登录方式对应一条 user_login_account。
+    pub user_code: Option<String>,
+    pub real_name: String,
+    pub nickname: Option<String>,
+    pub hospital_id: u64,
+    pub dept_id: u64,
+    pub identity_type: String,
+    pub doctor_cert_no: Option<String>,
+    pub id_card_no: Option<String>,
+    pub login_type: Option<LoginType>,
+    pub login_identifier: Option<String>,
+    pub password: Option<String>,
+    pub third_party_union_id: Option<String>,
+    pub is_verified: Option<i32>,
+    pub status: Option<i32>,
+    pub email: Option<String>,
+    pub phone: Option<String>,
+    pub verification_code: Option<String>,
+    #[serde(default)]
+    pub login_accounts: Vec<CreateLoginAccountReq>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateUserProfileReq {
+    // 更新资料不允许顺手改登录标识或密码，避免把账号绑定和用户资料混在一个接口里。
+    pub user_code: Option<String>,
+    pub real_name: String,
+    pub nickname: Option<String>,
+    pub hospital_id: u64,
+    pub dept_id: u64,
+    pub identity_type: String,
+    pub doctor_cert_no: Option<String>,
+    pub id_card_no: Option<String>,
+    pub status: Option<i32>,
+    pub version: Option<i32>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateLoginAccountReq {
+    pub login_type: LoginType,
+    pub login_identifier: String,
+    pub password: Option<String>,
+    pub third_party_union_id: Option<String>,
+    pub is_verified: Option<i32>,
+    pub status: Option<i32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -25,4 +136,27 @@ pub struct AccountPageQuery {
     pub page: Option<u64>,
     pub size: Option<u64>,
     pub user_code: Option<String>,
+    pub real_name: Option<String>,
+    pub hospital_id: Option<u64>,
+    pub dept_id: Option<u64>,
+    pub identity_type: Option<String>,
+    pub status: Option<i32>,
+}
+
+#[derive(Debug, Clone, FromRow)]
+pub struct AuthLoginAccount {
+    // 仅认证流程内部使用，不作为接口响应返回，避免泄露 password_hash。
+    pub user_id: u64,
+    pub login_identifier: String,
+    pub password_hash: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct LoginAccountForSave {
+    pub login_type: LoginType,
+    pub login_identifier: String,
+    pub password_hash: Option<String>,
+    pub third_party_union_id: Option<String>,
+    pub is_verified: i32,
+    pub status: i32,
 }

@@ -33,19 +33,76 @@ CREATE TABLE `disease`
             ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+CREATE TABLE `hospital`
+(
+    `id`            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `hospital_name` VARCHAR(256) NOT NULL COMMENT '医院名称',
+    `hospital_code` VARCHAR(64) NULL COMMENT '医院编码/拼音/自定义',
+    `province`      VARCHAR(64) NULL COMMENT '省份',
+    `city`          VARCHAR(64) NULL COMMENT '城市',
+    `address`       VARCHAR(512) NULL COMMENT '医院地址',
+    `sort_no`       INT          NOT NULL DEFAULT 0 COMMENT '排序',
+    `status`        TINYINT      NOT NULL DEFAULT 1 COMMENT '状态 1启用 0停用',
+    `created_at`    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_hospital_name` (`hospital_name`),
+    KEY             `idx_hospital_status_sort` (`status`, `sort_no`),
+    KEY             `idx_hospital_city` (`city`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE `user_info`
 (
-    `id`         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-    `user_code`  VARCHAR(64) NULL,
-    `nickname`   VARCHAR(128) NULL,
-    `email`      VARCHAR(255) NULL,
-    `phone`      VARCHAR(64) NULL,
-    `status`     INT NULL DEFAULT 1,
-    `version`    INT NULL DEFAULT 0,
-    `is_deleted` INT NULL DEFAULT 0,
-    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `id`                          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `user_code`                   VARCHAR(64) NULL COMMENT '用户编码/业务编号',
+    `real_name`                   VARCHAR(128) NOT NULL COMMENT '姓名',
+    `nickname`                    VARCHAR(128) NULL COMMENT '昵称',
+    `hospital_id`                 BIGINT UNSIGNED NOT NULL COMMENT '医院ID',
+    `dept_id`                     BIGINT UNSIGNED NOT NULL COMMENT '科室ID',
+    `identity_type`               VARCHAR(64) NOT NULL COMMENT '身份类型 MEDICAL_WORKER医药行业相关从业人员 NON_MEDICAL_WORKER非医药行业相关从业人员',
+    `doctor_cert_no`              VARCHAR(128) NULL COMMENT '职业医师资格证书编号，建议加密保存',
+    `id_card_no`                  VARCHAR(128) NULL COMMENT '身份证号，建议加密保存',
+    `status`                      TINYINT      NOT NULL DEFAULT 1 COMMENT '状态 1启用 0停用',
+    `version`                     INT          NOT NULL DEFAULT 0 COMMENT '乐观锁版本号',
+    `is_deleted`                  TINYINT      NOT NULL DEFAULT 0 COMMENT '是否删除 0否 1是',
+    `created_at`                  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`                  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
-    KEY `idx_user_info_user_code` (`user_code`),
-    KEY `idx_user_info_deleted` (`is_deleted`)
+    UNIQUE KEY `uk_user_info_user_code` (`user_code`),
+    KEY                           `idx_user_info_hospital_dept` (`hospital_id`, `dept_id`),
+    KEY                           `idx_user_info_identity_type` (`identity_type`),
+    KEY                           `idx_user_info_deleted` (`is_deleted`),
+    CONSTRAINT `fk_user_info_hospital`
+        FOREIGN KEY (`hospital_id`) REFERENCES `hospital` (`id`)
+            ON DELETE RESTRICT
+            ON UPDATE CASCADE,
+    CONSTRAINT `fk_user_info_dept`
+        FOREIGN KEY (`dept_id`) REFERENCES `department` (`id`)
+            ON DELETE RESTRICT
+            ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `user_login_account`
+(
+    `id`                  BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `user_id`             BIGINT UNSIGNED NOT NULL COMMENT '用户ID',
+    `login_type`          VARCHAR(32)  NOT NULL COMMENT '登录方式 EMAIL邮箱 PHONE手机 WECHAT微信 GITHUB GitHub',
+    `login_identifier`    VARCHAR(255) NOT NULL COMMENT '登录标识：邮箱/手机号/openid/github_id等',
+    `password_hash`       VARCHAR(255) NULL COMMENT '密码哈希，仅邮箱/手机号密码登录需要，第三方登录为空',
+    `third_party_union_id` VARCHAR(255) NULL COMMENT '第三方统一ID，例如微信unionid，可选',
+    `is_verified`         TINYINT      NOT NULL DEFAULT 0 COMMENT '是否已验证 0未验证 1已验证',
+    `last_login_at`       DATETIME NULL COMMENT '最后登录时间',
+    `status`              TINYINT      NOT NULL DEFAULT 1 COMMENT '状态 1启用 0停用/解绑',
+    `is_deleted`          TINYINT      NOT NULL DEFAULT 0 COMMENT '是否删除 0否 1是',
+    `created_at`          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_login_type_identifier` (`login_type`, `login_identifier`),
+    KEY                   `idx_user_login_account_user_id` (`user_id`),
+    KEY                   `idx_user_login_account_union_id` (`third_party_union_id`),
+    KEY                   `idx_user_login_account_deleted` (`is_deleted`),
+    CONSTRAINT `fk_user_login_account_user`
+        FOREIGN KEY (`user_id`) REFERENCES `user_info` (`id`)
+            ON DELETE CASCADE
+            ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

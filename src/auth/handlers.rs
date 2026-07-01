@@ -1,3 +1,5 @@
+use crate::account::model::LoginType;
+use crate::account::{repository, service};
 use crate::error::AppError;
 use crate::state::AppState;
 use axum::extract::State;
@@ -7,8 +9,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LoginReq {
-    username: String,
+    login_type: LoginType,
+    login_identifier: String,
     password: String,
 }
 
@@ -21,14 +25,26 @@ pub async fn login(
     State(state): State<AppState>,
     Json(req): Json<LoginReq>,
 ) -> Result<Json<LoginResp>, AppError> {
-    // 这里保持 Java demo 的写死账号。后续要接真实用户表时，只需要替换这段校验逻辑。
-    if req.username != "admin" || req.password != "123456" {
+    // 不区分“账号不存在”和“密码错误”，避免登录接口泄露可枚举的账号信息。
+    let login_account =
+        repository::find_login_for_auth(&state.db, req.login_type, &req.login_identifier)
+            .await?
+            .ok_or_else(|| AppError::Unauthorized("用户名或密码错误".to_string()))?;
+
+    let Some(password_hash) = &login_account.password_hash else {
+        return Err(AppError::Unauthorized(
+            "当前登录方式不支持密码登录".to_string(),
+        ));
+    };
+    if !service::verify_password(&req.password, password_hash)? {
         return Err(AppError::Unauthorized("用户名或密码错误".to_string()));
     }
 
-    let token = state
-        .jwt
-        .generate_token(&req.username, vec!["ADMIN".to_string()], Some(1))?;
+    let token = state.jwt.generate_token(
+        &login_account.login_identifier,
+        vec!["USER".to_string()],
+        Some(login_account.user_id),
+    )?;
     Ok(Json(LoginResp { token }))
 }
 
