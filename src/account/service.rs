@@ -157,7 +157,7 @@ pub async fn update_profile(
     Ok(ok)
 }
 
-pub async fn add_login_account(
+pub async fn bind_account(
     state: &mut AppState,
     user_id: u64,
     req: CreateLoginAccountReq,
@@ -178,7 +178,7 @@ pub async fn delete_account(state: &mut AppState, id: u64) -> Result<bool, AppEr
     Ok(ok)
 }
 
-pub async fn unbind_login_account(
+pub async fn unbind_account(
     state: &mut AppState,
     user_id: u64,
     login_id: u64,

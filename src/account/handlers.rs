@@ -14,7 +14,9 @@ pub async fn register(
     State(mut state): State<AppState>,
     Json(req): Json<CreateAccountReq>,
 ) -> Result<Json<RegisterResp>, AppError> {
+    tracing::info!("register req: {:?}", req);
     let account = service::create_account(&mut state, req).await?;
+    tracing::info!("register account: {:?}", account);
     let uid = account
         .profile
         .id
@@ -24,7 +26,7 @@ pub async fn register(
         vec!["USER".to_string()],
         Some(uid),
     )?;
-
+    tracing::info!("register token: {:?}", token);
     Ok(Json(RegisterResp { token }))
 }
 
@@ -34,15 +36,26 @@ pub async fn get_account(
 ) -> Result<Json<Option<AccountDetail>>, AppError> {
     let claims = state.jwt.require_headers(&headers)?;
     let id = service::require_claim_user_id(&claims)?;
-
-    if let Some(account) = cache::get_account(&mut state, id).await? {
-        return Ok(Json(Some(account)));
-    }
-
-    let account = repository::find_account_detail_by_id(&state.db, id).await?;
-    if let Some(account) = &account {
-        cache::cache_account(&mut state, account).await?;
-    }
+    tracing::info!("get_account for user_id: {}", id);
+    let account = match cache::get_account(&mut state, id).await? {
+        Some(account) => {
+            tracing::info!("get_account found account in cache: {:?}", account);
+            Some(account)
+        }
+        None => {
+            let account = repository::find_account_detail_by_id(&state.db, id).await?;
+            match &account {
+                Some(account) => {
+                    tracing::info!("get_account found account in database: {:?}", account);
+                    cache::cache_account(&mut state, account).await?;
+                }
+                None => {
+                    tracing::info!("get_account did not find account for user_id: {}", id);
+                }
+            }
+            account
+        }
+    };
     Ok(Json(account))
 }
 
@@ -79,27 +92,32 @@ pub async fn page_accounts(
     ))
 }
 
-pub async fn add_login_account(
+pub async fn bind_account(
     headers: HeaderMap,
     State(mut state): State<AppState>,
-    Path(user_id): Path<u64>,
     Json(req): Json<CreateLoginAccountReq>,
 ) -> Result<Json<UserLoginAccount>, AppError> {
-    state.jwt.require_headers(&headers)?;
-
+    let claims = state.jwt.require_headers(&headers)?;
+    let user_id = service::require_claim_user_id(&claims)?;
+    tracing::info!("bind_account for user_id: {}", user_id);
     Ok(Json(
-        service::add_login_account(&mut state, user_id, req).await?,
+        service::bind_account(&mut state, user_id, req).await?,
     ))
 }
 
-pub async fn unbind_login_account(
+pub async fn unbind_account(
     headers: HeaderMap,
     State(mut state): State<AppState>,
-    Path((user_id, login_id)): Path<(u64, u64)>,
+    Path(login_id): Path<u64>,
 ) -> Result<Json<bool>, AppError> {
-    state.jwt.require_headers(&headers)?;
-
+    let claims = state.jwt.require_headers(&headers)?;
+    let user_id = service::require_claim_user_id(&claims)?;
+    tracing::info!(
+        "unbind_account for user_id: {}, login_id: {}",
+        user_id,
+        login_id
+    );
     Ok(Json(
-        service::unbind_login_account(&mut state, user_id, login_id).await?,
+        service::unbind_account(&mut state, user_id, login_id).await?,
     ))
 }

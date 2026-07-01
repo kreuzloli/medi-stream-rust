@@ -27,12 +27,12 @@ pub fn router(state: AppState) -> Router {
                 .delete(account_handlers::delete_account),
         )
         .route(
-            "/account/:id/logins",
-            post(account_handlers::add_login_account),
+            "/account/bind/login",
+            post(account_handlers::bind_account),
         )
         .route(
-            "/account/unbind/:id/logins/:login_id",
-            axum::routing::delete(account_handlers::unbind_login_account),
+            "/account/unbind/:login_id",
+            axum::routing::delete(account_handlers::unbind_account),
         )
         // 当前先放开 CORS，方便前端本地调试；上线时可以改成白名单域名。
         .layer(CorsLayer::permissive())
