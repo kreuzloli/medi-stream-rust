@@ -28,7 +28,7 @@ impl LoginType {
     }
 
     fn from_request_value(value: &str) -> Option<Self> {
-        match value {
+        match value.trim().to_ascii_uppercase().as_str() {
             "EMAIL" => Some(LoginType::Email),
             "PHONE" => Some(LoginType::Phone),
             "WECHAT" => Some(LoginType::Wechat),
