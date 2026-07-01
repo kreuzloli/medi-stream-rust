@@ -20,12 +20,6 @@ pub fn router(state: AppState) -> Router {
         .route("/catalog/full", get(catalog_handlers::full_catalog))
         .route("/account/register", post(account_handlers::register))
         .route("/account", get(account_handlers::get_account))
-        .route("/account/page", get(account_handlers::page_accounts))
-        .route(
-            "/account/:id",
-            axum::routing::put(account_handlers::update_account)
-                .delete(account_handlers::delete_account),
-        )
         .route(
             "/account/bind/login",
             post(account_handlers::bind_account),

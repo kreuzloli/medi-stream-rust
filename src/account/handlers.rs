@@ -1,12 +1,11 @@
 use crate::account::model::{
-    AccountDetail, AccountPageQuery, CreateAccountReq, CreateLoginAccountReq, RegisterResp,
-    UpdateUserProfileReq, UserLoginAccount, UserProfile,
+    AccountDetail, CreateAccountReq, CreateLoginAccountReq, RegisterResp, UpdateUserProfileReq,
+    UserLoginAccount,
 };
 use crate::account::{cache, repository, service};
-use crate::common::Page;
 use crate::error::AppError;
 use crate::state::AppState;
-use axum::extract::{Path, Query, State};
+use axum::extract::{Path, State};
 use axum::http::HeaderMap;
 use axum::Json;
 
@@ -70,28 +69,6 @@ pub async fn update_account(
     Ok(Json(service::update_profile(&mut state, id, req).await?))
 }
 
-pub async fn delete_account(
-    headers: HeaderMap,
-    State(mut state): State<AppState>,
-    Path(id): Path<u64>,
-) -> Result<Json<bool>, AppError> {
-    state.jwt.require_headers(&headers)?;
-
-    Ok(Json(service::delete_account(&mut state, id).await?))
-}
-
-pub async fn page_accounts(
-    headers: HeaderMap,
-    State(state): State<AppState>,
-    Query(query): Query<AccountPageQuery>,
-) -> Result<Json<Page<UserProfile>>, AppError> {
-    state.jwt.require_headers(&headers)?;
-
-    Ok(Json(
-        repository::page_user_profiles(&state.db, query).await?,
-    ))
-}
-
 pub async fn bind_account(
     headers: HeaderMap,
     State(mut state): State<AppState>,
@@ -100,9 +77,7 @@ pub async fn bind_account(
     let claims = state.jwt.require_headers(&headers)?;
     let user_id = service::require_claim_user_id(&claims)?;
     tracing::info!("bind_account for user_id: {}", user_id);
-    Ok(Json(
-        service::bind_account(&mut state, user_id, req).await?,
-    ))
+    Ok(Json(service::bind_account(&mut state, user_id, req).await?))
 }
 
 pub async fn unbind_account(
