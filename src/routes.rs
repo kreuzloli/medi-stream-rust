@@ -11,6 +11,7 @@ pub fn router(state: AppState) -> Router {
     // with_state 会把 AppState 注入到所有 handler，类似 Spring 里的依赖注入。
     Router::new()
         .route("/auth/login", post(auth_handlers::login))
+        .route("/auth/logout", post(auth_handlers::logout))
         .route("/auth/me", get(auth_handlers::me))
         .route("/catalog/departments", get(catalog_handlers::departments))
         .route(
@@ -18,12 +19,9 @@ pub fn router(state: AppState) -> Router {
             get(catalog_handlers::diseases_by_department),
         )
         .route("/catalog/full", get(catalog_handlers::full_catalog))
-        .route("/account/register", post(account_handlers::register))
+        .route("/auth/register", post(auth_handlers::register))
         .route("/account", get(account_handlers::get_account))
-        .route(
-            "/account/bind/login",
-            post(account_handlers::bind_account),
-        )
+        .route("/account/bind/login", post(account_handlers::bind_account))
         .route(
             "/account/unbind/:login_id",
             axum::routing::delete(account_handlers::unbind_account),

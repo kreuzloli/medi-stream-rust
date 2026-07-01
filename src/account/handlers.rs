@@ -1,40 +1,20 @@
-use crate::account::model::{
-    AccountDetail, CreateAccountReq, CreateLoginAccountReq, RegisterResp, UpdateUserProfileReq,
-    UserLoginAccount,
+use crate::account::account_model::{
+    AccountDetail, CreateLoginAccountReq, UpdateUserProfileReq, UserLoginAccount,
 };
-use crate::account::{cache, repository, service};
+use crate::account::{account_repository, account_service};
+use crate::common::cache;
 use crate::error::AppError;
 use crate::state::AppState;
 use axum::extract::{Path, State};
 use axum::http::HeaderMap;
 use axum::Json;
 
-pub async fn register(
-    State(mut state): State<AppState>,
-    Json(req): Json<CreateAccountReq>,
-) -> Result<Json<RegisterResp>, AppError> {
-    tracing::info!("register req: {:?}", req);
-    let account = service::create_account(&mut state, req).await?;
-    tracing::info!("register account: {:?}", account);
-    let uid = account
-        .profile
-        .id
-        .ok_or_else(|| AppError::Internal("registered account has no id".to_string()))?;
-    let token = state.jwt.generate_token(
-        &service::account_token_subject(&account),
-        vec!["USER".to_string()],
-        Some(uid),
-    )?;
-    tracing::info!("register token: {:?}", token);
-    Ok(Json(RegisterResp { token }))
-}
-
 pub async fn get_account(
     headers: HeaderMap,
     State(mut state): State<AppState>,
 ) -> Result<Json<Option<AccountDetail>>, AppError> {
     let claims = state.jwt.require_headers(&headers)?;
-    let id = service::require_claim_user_id(&claims)?;
+    let id = account_service::require_claim_user_id(&claims)?;
     tracing::info!("get_account for user_id: {}", id);
     let account = match cache::get_account(&mut state, id).await? {
         Some(account) => {
@@ -42,7 +22,7 @@ pub async fn get_account(
             Some(account)
         }
         None => {
-            let account = repository::find_account_detail_by_id(&state.db, id).await?;
+            let account = account_repository::find_account_detail_by_id(&state.db, id).await?;
             match &account {
                 Some(account) => {
                     tracing::info!("get_account found account in database: {:?}", account);
@@ -66,7 +46,9 @@ pub async fn update_account(
 ) -> Result<Json<bool>, AppError> {
     state.jwt.require_headers(&headers)?;
 
-    Ok(Json(service::update_profile(&mut state, id, req).await?))
+    Ok(Json(
+        account_service::update_profile(&mut state, id, req).await?,
+    ))
 }
 
 pub async fn bind_account(
@@ -75,9 +57,11 @@ pub async fn bind_account(
     Json(req): Json<CreateLoginAccountReq>,
 ) -> Result<Json<UserLoginAccount>, AppError> {
     let claims = state.jwt.require_headers(&headers)?;
-    let user_id = service::require_claim_user_id(&claims)?;
+    let user_id = account_service::require_claim_user_id(&claims)?;
     tracing::info!("bind_account for user_id: {}", user_id);
-    Ok(Json(service::bind_account(&mut state, user_id, req).await?))
+    Ok(Json(
+        account_service::bind_account(&mut state, user_id, req).await?,
+    ))
 }
 
 pub async fn unbind_account(
@@ -86,13 +70,13 @@ pub async fn unbind_account(
     Path(login_id): Path<u64>,
 ) -> Result<Json<bool>, AppError> {
     let claims = state.jwt.require_headers(&headers)?;
-    let user_id = service::require_claim_user_id(&claims)?;
+    let user_id = account_service::require_claim_user_id(&claims)?;
     tracing::info!(
         "unbind_account for user_id: {}, login_id: {}",
         user_id,
         login_id
     );
     Ok(Json(
-        service::unbind_account(&mut state, user_id, login_id).await?,
+        account_service::unbind_account(&mut state, user_id, login_id).await?,
     ))
 }

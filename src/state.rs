@@ -1,4 +1,4 @@
-use crate::auth::JwtKeys;
+use crate::common::JwtKeys;
 use redis::aio::ConnectionManager;
 use sqlx::MySqlPool;
 

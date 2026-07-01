@@ -1,4 +1,4 @@
-use crate::account::model::{
+use crate::account::account_model::{
     AccountDetail, AccountPageQuery, AuthLoginAccount, CreateAccountReq, LoginAccountForSave,
     LoginType, UpdateUserProfileReq, UserLoginAccount, UserProfile,
 };
@@ -319,12 +319,13 @@ pub async fn find_login_for_auth(
     // 登录必须同时满足绑定有效和用户资料有效，防止停用用户通过旧绑定进入系统。
     Ok(sqlx::query_as::<_, AuthLoginAccount>(
         r#"
-        SELECT
-            login.user_id, login.login_identifier, login.password_hash
-        FROM user_login_account login
-        INNER JOIN user_info user ON user.id = login.user_id
-        WHERE login.login_type = ?
-          AND login.login_identifier = ?
+            SELECT
+                login.user_id, login.login_identifier, login.password_hash,
+                login.third_party_union_id, login.is_verified
+            FROM user_login_account login
+            INNER JOIN user_info user ON user.id = login.user_id
+            WHERE login.login_type = ?
+              AND login.login_identifier = ?
           AND login.status = 1
           AND login.is_deleted = 0
           AND user.status = 1
@@ -335,6 +336,51 @@ pub async fn find_login_for_auth(
     .bind(login_identifier)
     .fetch_optional(db)
     .await?)
+}
+
+pub async fn find_login_for_auth_by_union_id(
+    db: &MySqlPool,
+    login_type: LoginType,
+    third_party_union_id: &str,
+) -> Result<Option<AuthLoginAccount>, AppError> {
+    Ok(sqlx::query_as::<_, AuthLoginAccount>(
+        r#"
+        SELECT
+            login.user_id, login.login_identifier, login.password_hash,
+            login.third_party_union_id, login.is_verified
+        FROM user_login_account login
+        INNER JOIN user_info user ON user.id = login.user_id
+        WHERE login.login_type = ?
+          AND login.third_party_union_id = ?
+          AND login.status = 1
+          AND login.is_deleted = 0
+          AND user.status = 1
+          AND user.is_deleted = 0
+        "#,
+    )
+    .bind(login_type.as_str())
+    .bind(third_party_union_id)
+    .fetch_optional(db)
+    .await?)
+}
+
+pub async fn touch_last_login(
+    db: &MySqlPool,
+    user_id: u64,
+    login_identifier: &str,
+) -> Result<(), AppError> {
+    sqlx::query(
+        r#"
+        UPDATE user_login_account
+        SET last_login_at = NOW()
+        WHERE user_id = ? AND login_identifier = ? AND is_deleted = 0
+        "#,
+    )
+    .bind(user_id)
+    .bind(login_identifier)
+    .execute(db)
+    .await?;
+    Ok(())
 }
 
 fn push_profile_filters(query_builder: &mut QueryBuilder<MySql>, query: &AccountPageQuery) {

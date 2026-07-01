@@ -1,5 +1,5 @@
 use anyhow::Context;
-use medi_stream_rust::auth::JwtKeys;
+use medi_stream_rust::common::JwtKeys;
 use medi_stream_rust::config::Settings;
 use medi_stream_rust::logging;
 use medi_stream_rust::routes::router;

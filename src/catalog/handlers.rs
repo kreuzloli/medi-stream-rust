@@ -1,5 +1,5 @@
-use crate::catalog::model::{DepartmentQuery, DepartmentWithDiseasesDto, DiseaseDto};
-use crate::catalog::service;
+use crate::catalog::catalog_model::{DepartmentQuery, DepartmentWithDiseasesDto, DiseaseDto};
+use crate::catalog::catalog_service;
 use crate::error::AppError;
 use crate::state::AppState;
 use axum::extract::{Path, Query, State};
@@ -15,7 +15,7 @@ pub async fn departments(
 ) -> Result<Json<Vec<DepartmentWithDiseasesDto>>, AppError> {
     // Query<T> 会把 ?includeDiseases=true 解析成 DepartmentQuery。
     Ok(Json(
-        service::list_departments(&state, query.include_diseases.unwrap_or(false)).await?,
+        catalog_service::list_departments(&state, query.include_diseases.unwrap_or(false)).await?,
     ))
 }
 
@@ -24,7 +24,7 @@ pub async fn diseases_by_department(
     Path(dept_id): Path<u64>,
 ) -> Result<Json<Vec<DiseaseDto>>, AppError> {
     Ok(Json(
-        service::list_diseases_by_department(&state, dept_id).await?,
+        catalog_service::list_diseases_by_department(&state, dept_id).await?,
     ))
 }
 
@@ -44,7 +44,7 @@ pub async fn full_catalog(
         }
     }
 
-    let mut catalog = service::list_departments(&state, true).await?;
+    let mut catalog = catalog_service::list_departments(&state, true).await?;
     for department in &mut catalog {
         // &mut 表示可变借用：不复制整个 department，只在原对象上补 diseasesPreview。
         department.join_disease_names_ellipsis();

@@ -163,7 +163,7 @@ RUST_LOG=medi_stream_rust=debug,tower_http=info cargo run
 ```bash
 curl -X POST http://127.0.0.1:8080/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"username":"admin","password":"123456"}'
+  -d '{"loginType":"EMAIL","loginIdentifier":"doctor@example.com","password":"secret-123456"}'
 ```
 
 查全量目录：
@@ -181,7 +181,7 @@ curl http://127.0.0.1:8080/account?page=1\&size=10 \
 
 ## 当前实现边界
 
-- 登录仍然保持 Java demo 的写死账号：`admin / 123456`。
+- 登录已改为数据库账号认证：邮箱走密码，手机号走验证码，第三方登录走 `thirdPartyUnionId`。
 - `/account` 需要 `user_info` 表，建表脚本已经放在 `db/medi.sql`。
 - Redis 只做缓存，连接失败时服务仍会启动，只是缓存不可用。
 - CORS 当前是 `permissive`，方便本地前端调试；上线时建议改为固定域名白名单。

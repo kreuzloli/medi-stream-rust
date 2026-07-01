@@ -1,8 +1,8 @@
 use chrono::NaiveDateTime;
-use serde::{Deserialize, Serialize};
+use serde::{de, Deserialize, Deserializer, Serialize};
 use sqlx::FromRow;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum LoginType {
     Email,
@@ -25,6 +25,30 @@ impl LoginType {
     // 只有邮箱注册需要本地密码；手机、微信、GitHub 不在本表保存密码。
     pub fn needs_local_password(self) -> bool {
         matches!(self, LoginType::Email)
+    }
+
+    fn from_request_value(value: &str) -> Option<Self> {
+        match value {
+            "EMAIL" => Some(LoginType::Email),
+            "PHONE" => Some(LoginType::Phone),
+            "WECHAT" => Some(LoginType::Wechat),
+            "GITHUB" => Some(LoginType::Github),
+            _ => None,
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for LoginType {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        LoginType::from_request_value(&value).ok_or_else(|| {
+            de::Error::custom(format!(
+                "loginType只支持EMAIL、PHONE、WECHAT、GITHUB，当前值: {value}"
+            ))
+        })
     }
 }
 
@@ -149,6 +173,8 @@ pub struct AuthLoginAccount {
     pub user_id: u64,
     pub login_identifier: String,
     pub password_hash: Option<String>,
+    pub third_party_union_id: Option<String>,
+    pub is_verified: i32,
 }
 
 #[derive(Debug, Clone)]

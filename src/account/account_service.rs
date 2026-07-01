@@ -1,9 +1,10 @@
-use crate::account::model::{
+use crate::account::account_model::{
     AccountDetail, CreateAccountReq, CreateLoginAccountReq, LoginAccountForSave, LoginType,
     UpdateUserProfileReq,
 };
-use crate::account::{cache, repository};
-use crate::auth::jwt::Claims;
+use crate::account::account_repository;
+use crate::common::cache;
+use crate::common::jwt::Claims;
 use crate::error::AppError;
 use crate::state::AppState;
 use argon2::password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
@@ -22,7 +23,9 @@ pub fn validate_create_account_req(req: &CreateAccountReq) -> Result<(), AppErro
         &req.identity_type,
         req.status,
     )?;
-    for login in account_login_reqs(req)? {
+    let logins = account_login_reqs(req)?;
+    validate_register_login_type_params(req, &logins)?;
+    for login in logins {
         validate_create_login_account_req(&login)?;
     }
     Ok(())
@@ -50,6 +53,24 @@ pub fn validate_create_login_account_req(req: &CreateLoginAccountReq) -> Result<
         return Err(AppError::BadRequest("邮箱登录必须填写密码".to_string()));
     }
     validate_status(req.status)?;
+    Ok(())
+}
+
+fn validate_register_login_type_params(
+    req: &CreateAccountReq,
+    logins: &[CreateLoginAccountReq],
+) -> Result<(), AppError> {
+    for login in logins {
+        match login.login_type {
+            LoginType::Phone => {
+                require_login_verification_code(req.verification_code.as_deref())?;
+            }
+            LoginType::Wechat | LoginType::Github => {
+                require_third_party_union_id(login.third_party_union_id.as_deref())?;
+            }
+            LoginType::Email => {}
+        }
+    }
     Ok(())
 }
 
@@ -103,6 +124,63 @@ pub fn verify_password(password: &str, hash: &str) -> Result<bool, AppError> {
         .is_ok())
 }
 
+pub fn require_login_identifier(
+    login_type: LoginType,
+    login_identifier: Option<&str>,
+) -> Result<String, AppError> {
+    let identifier = login_identifier
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| AppError::BadRequest("登录标识不能为空".to_string()))?;
+    if matches!(login_type, LoginType::Wechat | LoginType::Github) {
+        return Ok(identifier.to_string());
+    }
+    Ok(identifier.to_string())
+}
+
+pub fn require_login_password(password: Option<&str>) -> Result<String, AppError> {
+    password
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .ok_or_else(|| AppError::BadRequest("密码不能为空".to_string()))
+}
+
+pub fn require_login_verification_code(
+    verification_code: Option<&str>,
+) -> Result<String, AppError> {
+    verification_code
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .ok_or_else(|| AppError::BadRequest("验证码不能为空".to_string()))
+}
+
+pub fn require_third_party_union_id(
+    third_party_union_id: Option<&str>,
+) -> Result<String, AppError> {
+    third_party_union_id
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .ok_or_else(|| AppError::BadRequest("thirdPartyUnionId不能为空".to_string()))
+}
+
+pub fn validate_verified_login_account(
+    login_type: LoginType,
+    is_verified: i32,
+) -> Result<(), AppError> {
+    match login_type {
+        LoginType::Email if is_verified != 1 => {
+            Err(AppError::Unauthorized("邮箱尚未验证".to_string()))
+        }
+        LoginType::Phone if is_verified != 1 => {
+            Err(AppError::Unauthorized("手机号尚未验证".to_string()))
+        }
+        _ => Ok(()),
+    }
+}
+
 pub fn login_password_hash(req: &CreateLoginAccountReq) -> Result<Option<String>, AppError> {
     if req.login_type.needs_local_password() {
         let password = req
@@ -131,15 +209,16 @@ pub fn require_claim_user_id(claims: &Claims) -> Result<u64, AppError> {
 pub async fn create_account(
     state: &mut AppState,
     req: CreateAccountReq,
-) -> Result<crate::account::model::AccountDetail, AppError> {
+) -> Result<crate::account::account_model::AccountDetail, AppError> {
     validate_create_account_req(&req)?;
     let login_accounts = account_login_reqs(&req)?
         .into_iter()
         .map(|login| login_account_for_save(&login))
         .collect::<Result<Vec<_>, _>>()?;
     // 用户资料和初始登录方式必须一起成功，避免产生无登录入口的用户资料。
-    let id = repository::insert_account_with_logins(&state.db, &req, &login_accounts).await?;
-    let account = repository::find_account_detail_by_id(&state.db, id)
+    let id =
+        account_repository::insert_account_with_logins(&state.db, &req, &login_accounts).await?;
+    let account = account_repository::find_account_detail_by_id(&state.db, id)
         .await?
         .ok_or_else(|| AppError::NotFound("account not found".to_string()))?;
     cache::cache_account(state, &account).await?;
@@ -152,7 +231,7 @@ pub async fn update_profile(
     req: UpdateUserProfileReq,
 ) -> Result<bool, AppError> {
     validate_update_user_profile_req(&req)?;
-    let ok = repository::update_user_profile(&state.db, id, &req).await?;
+    let ok = account_repository::update_user_profile(&state.db, id, &req).await?;
     cache::delete_account_cache(state, id).await?;
     Ok(ok)
 }
@@ -161,19 +240,19 @@ pub async fn bind_account(
     state: &mut AppState,
     user_id: u64,
     req: CreateLoginAccountReq,
-) -> Result<crate::account::model::UserLoginAccount, AppError> {
+) -> Result<crate::account::account_model::UserLoginAccount, AppError> {
     validate_create_login_account_req(&req)?;
     // 只有邮箱会生成 password_hash；手机、微信、GitHub 的 password_hash 保持为空。
     let login = login_account_for_save(&req)?;
-    let login_id = repository::insert_login_account(&state.db, user_id, &login).await?;
+    let login_id = account_repository::insert_login_account(&state.db, user_id, &login).await?;
     cache::delete_account_cache(state, user_id).await?;
-    repository::find_login_account_by_id(&state.db, user_id, login_id)
+    account_repository::find_login_account_by_id(&state.db, user_id, login_id)
         .await?
         .ok_or_else(|| AppError::NotFound("login account not found".to_string()))
 }
 
 pub async fn delete_account(state: &mut AppState, id: u64) -> Result<bool, AppError> {
-    let ok = repository::logical_delete_user(&state.db, id).await?;
+    let ok = account_repository::logical_delete_user(&state.db, id).await?;
     cache::delete_account_cache(state, id).await?;
     Ok(ok)
 }
@@ -183,7 +262,7 @@ pub async fn unbind_account(
     user_id: u64,
     login_id: u64,
 ) -> Result<bool, AppError> {
-    let ok = repository::delete_login_account(&state.db, user_id, login_id).await?;
+    let ok = account_repository::delete_login_account(&state.db, user_id, login_id).await?;
     cache::delete_account_cache(state, user_id).await?;
     Ok(ok)
 }

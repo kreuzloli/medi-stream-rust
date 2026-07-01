@@ -13,6 +13,7 @@ cargo run
 The service exposes the same main route groups:
 
 - `POST /auth/login`
+- `POST /auth/logout`
 - `GET /auth/me`
 - `GET /catalog/departments?includeDiseases=false`
 - `GET /catalog/departments/{deptId}/diseases`
@@ -23,4 +24,4 @@ The service exposes the same main route groups:
 - `DELETE /account/{id}`
 - `GET /account?page=1&size=10&userCode=xxx`
 
-`/account` routes require `Authorization: Bearer <token>`. The current login behavior matches the Java demo: `admin / 123456`.
+`/account` routes require `Authorization: Bearer <token>`. Login supports email/password, phone verification code, and third-party `thirdPartyUnionId` flows.

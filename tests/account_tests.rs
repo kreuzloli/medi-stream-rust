@@ -1,13 +1,14 @@
-use medi_stream_rust::account::model::{
+use medi_stream_rust::account::account_model::{
     AccountDetail, CreateAccountReq, CreateLoginAccountReq, LoginType, UserLoginAccount,
     UserProfile,
 };
-use medi_stream_rust::account::service::{
+use medi_stream_rust::account::account_service::{
     account_login_reqs, account_token_subject, hash_password, login_password_hash,
-    require_claim_user_id, validate_create_account_req, validate_create_login_account_req,
-    verify_password,
+    require_claim_user_id, require_login_identifier, require_login_verification_code,
+    require_third_party_union_id, validate_create_account_req, validate_create_login_account_req,
+    validate_verified_login_account, verify_password,
 };
-use medi_stream_rust::auth::jwt::Claims;
+use medi_stream_rust::common::jwt::Claims;
 
 #[test]
 fn create_account_requires_profile_and_password_fields() {
@@ -79,6 +80,37 @@ fn only_email_login_requires_password() {
 }
 
 #[test]
+fn register_phone_login_requires_verification_code() {
+    let req = CreateAccountReq {
+        login_type: Some(LoginType::Phone),
+        login_identifier: Some("13800138000".to_string()),
+        password: None,
+        verification_code: Some("  ".to_string()),
+        ..valid_create_req()
+    };
+
+    let err = validate_create_account_req(&req).expect_err("phone register must require code");
+
+    assert!(err.to_string().contains("验证码不能为空"));
+}
+
+#[test]
+fn register_third_party_login_requires_union_id() {
+    let req = CreateAccountReq {
+        login_type: Some(LoginType::Wechat),
+        login_identifier: Some("wechat-openid-001".to_string()),
+        password: None,
+        third_party_union_id: Some("  ".to_string()),
+        ..valid_create_req()
+    };
+
+    let err =
+        validate_create_account_req(&req).expect_err("third-party register must require union id");
+
+    assert!(err.to_string().contains("thirdPartyUnionId不能为空"));
+}
+
+#[test]
 fn password_hash_is_created_for_email_only() {
     let email = login_req(
         LoginType::Email,
@@ -128,6 +160,23 @@ fn login_type_serializes_as_database_value() {
 }
 
 #[test]
+fn register_rejects_login_type_not_matching_enum_values() {
+    let req = serde_json::json!({
+        "realName": "张三",
+        "hospitalId": 1,
+        "deptId": 2,
+        "identityType": "MEDICAL_WORKER",
+        "loginType": "SMS",
+        "loginIdentifier": "13800138000"
+    });
+
+    let err = serde_json::from_value::<CreateAccountReq>(req)
+        .expect_err("unknown loginType must be rejected before register service");
+
+    assert!(err.to_string().contains("loginType只支持"));
+}
+
+#[test]
 fn password_hash_does_not_store_plain_text_and_can_be_verified() {
     let password = "secret-123456";
 
@@ -136,6 +185,52 @@ fn password_hash_does_not_store_plain_text_and_can_be_verified() {
     assert_ne!(hash, password);
     assert!(verify_password(password, &hash).expect("password verification should run"));
     assert!(!verify_password("wrong-password", &hash).expect("password verification should run"));
+}
+
+#[test]
+fn email_login_requires_verified_binding() {
+    let err = validate_verified_login_account(LoginType::Email, 0)
+        .expect_err("unverified email binding must not login");
+
+    assert!(err.to_string().contains("邮箱尚未验证"));
+    validate_verified_login_account(LoginType::Email, 1)
+        .expect("verified email binding should login");
+}
+
+#[test]
+fn phone_login_requires_verification_code() {
+    let err = require_login_verification_code(Some("  "))
+        .expect_err("blank verification code must be rejected");
+
+    assert!(err.to_string().contains("验证码不能为空"));
+    assert_eq!(
+        require_login_verification_code(Some("123456")).expect("code should be accepted"),
+        "123456"
+    );
+}
+
+#[test]
+fn third_party_login_requires_union_id() {
+    let err = require_third_party_union_id(None).expect_err("union id is required");
+
+    assert!(err.to_string().contains("thirdPartyUnionId不能为空"));
+    assert_eq!(
+        require_third_party_union_id(Some(" union-001 ")).expect("union id should be accepted"),
+        "union-001"
+    );
+}
+
+#[test]
+fn email_and_phone_login_require_identifier() {
+    let err = require_login_identifier(LoginType::Email, Some("  "))
+        .expect_err("blank login identifier must be rejected");
+
+    assert!(err.to_string().contains("登录标识不能为空"));
+    assert_eq!(
+        require_login_identifier(LoginType::Phone, Some(" 13800138000 "))
+            .expect("phone identifier should be accepted"),
+        "13800138000"
+    );
 }
 
 fn valid_create_req() -> CreateAccountReq {

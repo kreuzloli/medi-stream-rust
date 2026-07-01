@@ -1,4 +1,4 @@
-use medi_stream_rust::catalog::model::{DepartmentWithDiseasesDto, DiseaseDto};
+use medi_stream_rust::catalog::catalog_model::{DepartmentWithDiseasesDto, DiseaseDto};
 
 #[test]
 fn preview_matches_java_full_catalog_rule() {
