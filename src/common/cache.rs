@@ -32,9 +32,30 @@ pub async fn cache_account(state: &mut AppState, account: &AccountDetail) -> Res
     Ok(())
 }
 
+pub async fn cache_token(
+    state: &mut AppState,
+    account: &AccountDetail,
+    token: &str,
+) -> Result<(), AppError> {
+    let key = format!("token:{}", token);
+    if let Some(redis) = state.redis.as_mut() {
+        let json = serde_json::to_string(account)?;
+        let _: () = redis.set_ex(key, json, ACCOUNT_CACHE_SECONDS).await?;
+    }
+    Ok(())
+}
+
 pub async fn delete_account_cache(state: &mut AppState, id: u64) -> Result<(), AppError> {
     if let Some(redis) = state.redis.as_mut() {
         let _: () = redis.del(account_cache_key(id)).await?;
+    }
+    Ok(())
+}
+
+pub async fn delete_token_cache(state: &mut AppState, token: &str) -> Result<(), AppError> {
+    let key = format!("token:{}", token);
+    if let Some(redis) = state.redis.as_mut() {
+        let _: () = redis.del(key).await?;
     }
     Ok(())
 }

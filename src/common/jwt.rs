@@ -84,4 +84,15 @@ impl JwtKeys {
             .ok_or_else(|| AppError::Unauthorized("Invalid token".to_string()))?;
         self.decode_token(token)
     }
+
+    pub fn get_token_from_headers(&self, headers: &HeaderMap) -> Result<String, AppError> {
+        let auth = headers
+            .get(axum::http::header::AUTHORIZATION)
+            .and_then(|value| value.to_str().ok())
+            .ok_or_else(|| AppError::Unauthorized("Missing token".to_string()))?;
+        let token = auth
+            .strip_prefix("Bearer ")
+            .ok_or_else(|| AppError::Unauthorized("Invalid token".to_string()))?;
+        Ok(token.to_string())
+    }
 }

@@ -107,6 +107,7 @@ pub async fn login(
         &login_account.login_identifier,
     )
     .await?;
+    cache::cache_token(&mut state, &account, &token).await?;
     Ok(Json(RegisterResp { token }))
 }
 
@@ -126,9 +127,12 @@ pub async fn me(
 
 pub async fn logout(
     headers: HeaderMap,
-    State(state): State<AppState>,
+    State(mut state): State<AppState>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    state.jwt.require_headers(&headers)?;
+    tracing::info!("logout headers: {:?}", headers);
+    let token = state.jwt.get_token_from_headers(&headers)?;
+    tracing::info!("logout token: {:?}", token);
+    cache::delete_token_cache(&mut state, &token).await?;
     Ok(Json(json!({ "ok": true })))
 }
 
@@ -149,5 +153,6 @@ pub async fn register(
         Some(uid),
     )?;
     tracing::info!("register token: {:?}", token);
+    cache::cache_token(&mut state, &account, &token).await?;
     Ok(Json(RegisterResp { token }))
 }

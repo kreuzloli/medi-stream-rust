@@ -11,7 +11,7 @@ pub fn router(state: AppState) -> Router {
     // with_state 会把 AppState 注入到所有 handler，类似 Spring 里的依赖注入。
     Router::new()
         .route("/auth/login", post(auth_handlers::login))
-        .route("/auth/logout", post(auth_handlers::logout))
+        .route("/auth/logout", get(auth_handlers::logout))
         .route("/auth/me", get(auth_handlers::me))
         .route("/catalog/departments", get(catalog_handlers::departments))
         .route(
