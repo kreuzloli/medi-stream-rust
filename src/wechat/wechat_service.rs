@@ -12,11 +12,7 @@ pub async fn fetch_wechat_access_token(
 ) -> Result<WechatAccessTokenResp, AppError> {
     let url = format!(
         "{}{}?grant_type={}&appid={}&secret={}",
-        WECHAT_API_BASE_URL,
-        WECHAT_ACCESS_TOKEN_PATH,
-        WECHAT_CLIENT_CREDENTIAL,
-        app_id,
-        app_secret
+        WECHAT_API_BASE_URL, WECHAT_ACCESS_TOKEN_PATH, WECHAT_CLIENT_CREDENTIAL, app_id, app_secret
     );
 
     let resp = state

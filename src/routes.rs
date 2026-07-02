@@ -12,7 +12,10 @@ pub fn router(state: AppState) -> Router {
         .route(route::AUTH_LOGIN, post(auth_handlers::login))
         .route(route::AUTH_LOGOUT, get(auth_handlers::logout))
         .route(route::AUTH_ME, get(auth_handlers::me))
-        .route(route::CATALOG_DEPARTMENTS, get(hospital_handlers::departments))
+        .route(
+            route::CATALOG_DEPARTMENTS,
+            get(hospital_handlers::departments),
+        )
         .route(
             route::CATALOG_DEPARTMENT_DISEASES,
             get(hospital_handlers::diseases_by_department),
@@ -30,8 +33,14 @@ pub fn router(state: AppState) -> Router {
         )
         .route(route::AUTH_REGISTER, post(auth_handlers::register))
         .route(route::ACCOUNT, get(account_handlers::get_account))
-        .route(route::ACCOUNT_BIND_LOGIN, post(account_handlers::bind_account))
-        .route(route::ACCOUNT_UNBIND, delete(account_handlers::unbind_account))
+        .route(
+            route::ACCOUNT_BIND_LOGIN,
+            post(account_handlers::bind_account),
+        )
+        .route(
+            route::ACCOUNT_UNBIND,
+            delete(account_handlers::unbind_account),
+        )
         .layer(CorsLayer::permissive())
         .with_state(state)
 }

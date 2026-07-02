@@ -20,8 +20,7 @@ impl Settings {
             server_addr: env::var(env_constants::SERVER_ADDR)
                 .unwrap_or_else(|_| env_constants::DEFAULT_SERVER_ADDR.to_string()),
 
-            database_url: env::var(env_constants::DATABASE_URL)
-                .context("missing DATABASE_URL")?,
+            database_url: env::var(env_constants::DATABASE_URL).context("missing DATABASE_URL")?,
 
             redis_url: env::var(env_constants::REDIS_URL)
                 .unwrap_or_else(|_| env_constants::DEFAULT_REDIS_URL.to_string()),
