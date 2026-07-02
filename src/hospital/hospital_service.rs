@@ -1,4 +1,4 @@
-use crate::common::constants::account::{STATUS_DISABLED, STATUS_ENABLED};
+use crate::common::constants::status::{STATUS_DISABLED, STATUS_ENABLED};
 use crate::common::Page;
 use crate::error::AppError;
 use crate::hospital::hospital_model::{Hospital, HospitalPageQuery, SaveHospitalReq};

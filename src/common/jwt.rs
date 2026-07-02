@@ -1,3 +1,4 @@
+use crate::common::constants::auth::BEARER_PREFIX;
 use crate::config::Settings;
 use crate::error::AppError;
 use axum::http::HeaderMap;
@@ -6,7 +7,6 @@ use base64::Engine;
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
-use crate::common::constants::auth::BEARER_PREFIX;
 
 #[derive(Clone)]
 pub struct JwtKeys {

@@ -74,6 +74,19 @@ pub mod account {
     /// 非医药行业相关身份。
     pub const IDENTITY_NON_MEDICAL_WORKER: &str = "NON_MEDICAL_WORKER";
 
+    /// 默认登录账号绑定数量上限。
+    ///
+    /// 当前支持 EMAIL / PHONE / WECHAT / GITHUB，最多 4 种。
+    pub const MAX_LOGIN_ACCOUNT_COUNT: usize = 4;
+
+    /// 登录方式字符串，和数据库 login_type 字段保持一致。
+    pub const LOGIN_TYPE_EMAIL: &str = "EMAIL";
+    pub const LOGIN_TYPE_PHONE: &str = "PHONE";
+    pub const LOGIN_TYPE_WECHAT: &str = "WECHAT";
+    pub const LOGIN_TYPE_GITHUB: &str = "GITHUB";
+}
+
+pub mod status {
     /// 启用状态。
     pub const STATUS_ENABLED: i32 = 1;
 
@@ -88,17 +101,6 @@ pub mod account {
 
     /// 默认版本号。
     pub const DEFAULT_VERSION: i32 = 0;
-
-    /// 默认登录账号绑定数量上限。
-    ///
-    /// 当前支持 EMAIL / PHONE / WECHAT / GITHUB，最多 4 种。
-    pub const MAX_LOGIN_ACCOUNT_COUNT: usize = 4;
-
-    /// 登录方式字符串，和数据库 login_type 字段保持一致。
-    pub const LOGIN_TYPE_EMAIL: &str = "EMAIL";
-    pub const LOGIN_TYPE_PHONE: &str = "PHONE";
-    pub const LOGIN_TYPE_WECHAT: &str = "WECHAT";
-    pub const LOGIN_TYPE_GITHUB: &str = "GITHUB";
 }
 
 pub mod page {

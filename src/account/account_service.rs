@@ -5,9 +5,9 @@ use crate::account::account_model::{
 use crate::account::account_repository;
 use crate::common::cache;
 use crate::common::constants::account::{
-    IDENTITY_MEDICAL_WORKER, IDENTITY_NON_MEDICAL_WORKER, MAX_LOGIN_ACCOUNT_COUNT, STATUS_DISABLED,
-    STATUS_ENABLED,
+    IDENTITY_MEDICAL_WORKER, IDENTITY_NON_MEDICAL_WORKER, MAX_LOGIN_ACCOUNT_COUNT,
 };
+use crate::common::constants::status::{STATUS_DISABLED, STATUS_ENABLED};
 use crate::common::jwt::Claims;
 use crate::error::AppError;
 use crate::state::AppState;
