@@ -10,6 +10,7 @@ pub enum PlayProtocol {
 }
 
 impl PlayProtocol {
+    /// 返回当前播放协议对应的 URL 前缀。
     fn prefix(self) -> &'static str {
         match self {
             PlayProtocol::Webrtc => "webrtc://",
@@ -18,6 +19,7 @@ impl PlayProtocol {
         }
     }
 
+    /// 返回当前播放协议对应的文件后缀。
     fn suffix(self) -> &'static str {
         match self {
             PlayProtocol::Webrtc | PlayProtocol::Rtmp => "",
@@ -27,6 +29,7 @@ impl PlayProtocol {
     }
 }
 
+/// 按腾讯云规则生成推流 URL、播放 URL 和可选转码播放 URL。
 pub fn build_live_urls(
     config: &LiveUrlConfig,
     stream_name: &str,
@@ -126,6 +129,7 @@ pub fn build_live_urls(
     })
 }
 
+/// 生成带 txSecret 和 txTime 的 RTMP 推流 URL。
 pub fn build_push_url(
     push_domain: &str,
     app_name: &str,
@@ -133,6 +137,7 @@ pub fn build_push_url(
     push_key: &str,
     tx_time_hex: &str,
 ) -> String {
+    // 腾讯云推流防盗链签名要求按 pushKey + streamName + txTime 拼 MD5。
     let base = format!(
         "rtmp://{}/{}/{}",
         trim_slash(push_domain),
@@ -144,6 +149,7 @@ pub fn build_push_url(
     format!("{base}?txSecret={tx_secret}&txTime={tx_time_hex}")
 }
 
+/// 生成指定协议的播放 URL，支持源流和转码流。
 pub fn build_play_url(
     protocol: PlayProtocol,
     play_domain: &str,
@@ -153,6 +159,7 @@ pub fn build_play_url(
     play_key: &str,
     tx_time_hex: &str,
 ) -> String {
+    // 播放转码流的签名对象是 streamName_template，必须和最终 URL 路径保持一致。
     let stream_part = transcode_template
         .map(str::trim)
         .filter(|template| !template.is_empty())
@@ -171,10 +178,12 @@ pub fn build_play_url(
     format!("{base}?txSecret={tx_secret}&txTime={tx_time_hex}")
 }
 
+/// 把过期 Unix 秒转换成腾讯云要求的大写十六进制 txTime。
 pub fn to_upper_hex(unix_seconds: i64) -> String {
     format!("{unix_seconds:X}")
 }
 
+/// 校验 URL 生成所需的腾讯云直播配置。
 fn validate_config(config: &LiveUrlConfig) -> Result<(), AppError> {
     require_not_blank("TENCENT_LIVE_APP_NAME", &config.app_name)?;
     require_not_blank("TENCENT_LIVE_PUSH_DOMAIN", &config.push_domain)?;
@@ -190,6 +199,7 @@ fn validate_config(config: &LiveUrlConfig) -> Result<(), AppError> {
     Ok(())
 }
 
+/// 读取必填字段，缺失或空值时返回业务错误。
 fn require_not_blank<'a>(name: &str, value: &'a str) -> Result<&'a str, AppError> {
     let trimmed = value.trim();
     if trimmed.is_empty() {
@@ -199,10 +209,12 @@ fn require_not_blank<'a>(name: &str, value: &'a str) -> Result<&'a str, AppError
     Ok(trimmed)
 }
 
+/// 计算小写 MD5 十六进制字符串。
 fn md5_hex(value: &str) -> String {
     format!("{:x}", md5::compute(value.as_bytes()))
 }
 
+/// 去掉域名或 appName 首尾空白和斜杠。
 fn trim_slash(value: &str) -> &str {
     value.trim().trim_matches('/')
 }

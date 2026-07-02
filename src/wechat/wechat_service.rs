@@ -5,11 +5,13 @@ use crate::error::AppError;
 use crate::state::AppState;
 use crate::wechat::wechat_model::WechatAccessTokenResp;
 
+/// 调用外部服务并返回解析后的响应。
 pub async fn fetch_wechat_access_token(
     state: &AppState,
     app_id: &str,
     app_secret: &str,
 ) -> Result<WechatAccessTokenResp, AppError> {
+    tracing::info!(app_id = %app_id, "fetch_wechat_access_token request started");
     let url = format!(
         "{}{}?grant_type={}&appid={}&secret={}",
         WECHAT_API_BASE_URL, WECHAT_ACCESS_TOKEN_PATH, WECHAT_CLIENT_CREDENTIAL, app_id, app_secret
@@ -20,5 +22,6 @@ pub async fn fetch_wechat_access_token(
         .get_json::<WechatAccessTokenResp>(WECHAT_SERVICE_NAME, &url)
         .await?;
 
+    tracing::info!(app_id = %app_id, "fetch_wechat_access_token request finished");
     Ok(resp)
 }

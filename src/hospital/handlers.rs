@@ -12,6 +12,7 @@ use redis::AsyncCommands;
 const FULL_DEPARTMENT_CACHE_KEY: &str = "full_department";
 const CACHE_SECONDS: u64 = 128 * 60 * 60;
 
+/// 查询科室列表，可选带出疾病列表。
 pub async fn departments(
     State(state): State<AppState>,
     Query(query): Query<DepartmentQuery>,
@@ -22,6 +23,7 @@ pub async fn departments(
     ))
 }
 
+/// 查询指定科室下的疾病列表。
 pub async fn diseases_by_department(
     State(state): State<AppState>,
     Path(dept_id): Path<u64>,
@@ -31,6 +33,7 @@ pub async fn diseases_by_department(
     ))
 }
 
+/// 查询完整科室疾病目录，并优先使用 Redis 缓存。
 pub async fn full_catalog(
     State(mut state): State<AppState>,
 ) -> Result<Json<Vec<DepartmentWithDiseasesDto>>, AppError> {
@@ -63,6 +66,7 @@ pub async fn full_catalog(
     Ok(Json(catalog))
 }
 
+/// 分页查询数据，并返回统一 Page 结构。
 pub async fn page_hospitals(
     State(state): State<AppState>,
     Query(query): Query<HospitalPageQuery>,
@@ -70,6 +74,7 @@ pub async fn page_hospitals(
     Ok(Json(hospital_service::page_hospitals(&state, query).await?))
 }
 
+/// 根据路径 ID 查询单个医院。
 pub async fn get_hospital(
     State(state): State<AppState>,
     Path(id): Path<u64>,
@@ -77,6 +82,7 @@ pub async fn get_hospital(
     Ok(Json(hospital_service::get_hospital(&state, id).await?))
 }
 
+/// 创建业务数据，并返回创建后的记录。
 pub async fn create_hospital(
     State(state): State<AppState>,
     Json(req): Json<SaveHospitalReq>,
@@ -84,6 +90,7 @@ pub async fn create_hospital(
     Ok(Json(hospital_service::create_hospital(&state, req).await?))
 }
 
+/// 更新业务数据，并在目标不存在时返回 NotFound。
 pub async fn update_hospital(
     State(state): State<AppState>,
     Path(id): Path<u64>,
@@ -94,6 +101,7 @@ pub async fn update_hospital(
     ))
 }
 
+/// 删除指定医院。
 pub async fn delete_hospital(
     State(state): State<AppState>,
     Path(id): Path<u64>,

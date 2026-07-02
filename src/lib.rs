@@ -6,6 +6,7 @@ pub mod common;
 pub mod config;
 pub mod error;
 pub mod hospital;
+pub mod live;
 pub mod logging;
 pub mod routes;
 pub mod state;

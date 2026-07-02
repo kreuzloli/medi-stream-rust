@@ -44,6 +44,7 @@ pub struct DescribeLiveStreamStateReq {
 }
 
 impl DescribeLiveStreamStateReq {
+    /// 校验腾讯云直播状态查询请求的必填字段。
     pub fn validate(&self) -> Result<(), AppError> {
         if self.app_name.trim().is_empty() {
             return Err(AppError::BadRequest("appName不能为空".to_string()));

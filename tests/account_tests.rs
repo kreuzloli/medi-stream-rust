@@ -10,6 +10,7 @@ use medi_stream_rust::account::account_service::{
 };
 use medi_stream_rust::common::jwt::Claims;
 
+/// 创建业务数据，并返回创建后的记录。
 #[test]
 fn create_account_requires_profile_and_password_fields() {
     let mut req = valid_create_req();
@@ -20,6 +21,7 @@ fn create_account_requires_profile_and_password_fields() {
     assert!(err.to_string().contains("姓名不能为空"));
 }
 
+/// 创建业务数据，并返回创建后的记录。
 #[test]
 fn create_account_accepts_required_medical_profile_fields() {
     let req = valid_create_req();
@@ -27,6 +29,7 @@ fn create_account_accepts_required_medical_profile_fields() {
     validate_create_account_req(&req).expect("valid account request should pass validation");
 }
 
+/// 创建业务数据，并返回创建后的记录。
 #[test]
 fn create_account_can_bind_all_supported_login_types() {
     let req = CreateAccountReq {
@@ -60,6 +63,7 @@ fn create_account_can_bind_all_supported_login_types() {
         .any(|login| login.login_type == LoginType::Github));
 }
 
+/// 验证特定登录方式的约束。
 #[test]
 fn only_email_login_requires_password() {
     let email_without_password = login_req(LoginType::Email, "doctor@example.com", None);
@@ -79,6 +83,7 @@ fn only_email_login_requires_password() {
         .expect("github does not need password");
 }
 
+/// 验证注册流程的参数和返回规则。
 #[test]
 fn register_phone_login_requires_verification_code() {
     let req = CreateAccountReq {
@@ -94,6 +99,7 @@ fn register_phone_login_requires_verification_code() {
     assert!(err.to_string().contains("验证码不能为空"));
 }
 
+/// 验证注册流程的参数和返回规则。
 #[test]
 fn register_third_party_login_requires_union_id() {
     let req = CreateAccountReq {
@@ -110,6 +116,7 @@ fn register_third_party_login_requires_union_id() {
     assert!(err.to_string().contains("thirdPartyUnionId不能为空"));
 }
 
+/// 验证密码哈希和校验规则。
 #[test]
 fn password_hash_is_created_for_email_only() {
     let email = login_req(
@@ -126,6 +133,7 @@ fn password_hash_is_created_for_email_only() {
     assert!(phone_hash.is_none());
 }
 
+/// 验证注册流程的参数和返回规则。
 #[test]
 fn register_token_subject_uses_first_login_identifier() {
     let account = account_detail(Some(100), vec![login_account("doctor@example.com")]);
@@ -135,6 +143,7 @@ fn register_token_subject_uses_first_login_identifier() {
     assert_eq!(subject, "doctor@example.com");
 }
 
+/// 构造带 uid 的 JWT claims，用于验证当前用户身份读取逻辑。
 #[test]
 fn get_account_requires_uid_from_jwt_claims() {
     let claims = Claims {
@@ -151,6 +160,7 @@ fn get_account_requires_uid_from_jwt_claims() {
     assert_eq!(uid, 100);
 }
 
+/// 处理登录相关的业务转换。
 #[test]
 fn login_type_serializes_as_database_value() {
     assert_eq!(LoginType::Email.as_str(), "EMAIL");
@@ -159,6 +169,7 @@ fn login_type_serializes_as_database_value() {
     assert_eq!(LoginType::Github.as_str(), "GITHUB");
 }
 
+/// 验证注册流程的参数和返回规则。
 #[test]
 fn register_rejects_login_type_not_matching_enum_values() {
     let req = serde_json::json!({
@@ -176,6 +187,7 @@ fn register_rejects_login_type_not_matching_enum_values() {
     assert!(err.to_string().contains("loginType只支持"));
 }
 
+/// 验证密码哈希和校验规则。
 #[test]
 fn password_hash_does_not_store_plain_text_and_can_be_verified() {
     let password = "secret-123456";
@@ -187,6 +199,7 @@ fn password_hash_does_not_store_plain_text_and_can_be_verified() {
     assert!(!verify_password("wrong-password", &hash).expect("password verification should run"));
 }
 
+/// 验证对应登录方式的参数规则。
 #[test]
 fn email_login_requires_verified_binding() {
     let err = validate_verified_login_account(LoginType::Email, 0)
@@ -197,6 +210,7 @@ fn email_login_requires_verified_binding() {
         .expect("verified email binding should login");
 }
 
+/// 验证对应登录方式的参数规则。
 #[test]
 fn phone_login_requires_verification_code() {
     let err = require_login_verification_code(Some("  "))
@@ -209,6 +223,7 @@ fn phone_login_requires_verification_code() {
     );
 }
 
+/// 验证对应登录方式的参数规则。
 #[test]
 fn third_party_login_requires_union_id() {
     let err = require_third_party_union_id(None).expect_err("union id is required");
@@ -220,6 +235,7 @@ fn third_party_login_requires_union_id() {
     );
 }
 
+/// 验证对应登录方式的参数规则。
 #[test]
 fn email_and_phone_login_require_identifier() {
     let err = require_login_identifier(LoginType::Email, Some("  "))
@@ -233,6 +249,7 @@ fn email_and_phone_login_require_identifier() {
     );
 }
 
+/// 构造测试使用的有效请求对象。
 fn valid_create_req() -> CreateAccountReq {
     CreateAccountReq {
         user_code: Some("U001".to_string()),
@@ -256,6 +273,7 @@ fn valid_create_req() -> CreateAccountReq {
     }
 }
 
+/// 处理登录相关的业务转换。
 fn login_req(
     login_type: LoginType,
     login_identifier: &str,
@@ -271,6 +289,7 @@ fn login_req(
     }
 }
 
+/// 处理账号相关的业务转换。
 fn account_detail(id: Option<u64>, login_accounts: Vec<UserLoginAccount>) -> AccountDetail {
     AccountDetail {
         profile: UserProfile {
@@ -293,6 +312,7 @@ fn account_detail(id: Option<u64>, login_accounts: Vec<UserLoginAccount>) -> Acc
     }
 }
 
+/// 处理登录相关的业务转换。
 fn login_account(login_identifier: &str) -> UserLoginAccount {
     UserLoginAccount {
         id: 1,

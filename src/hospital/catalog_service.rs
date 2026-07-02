@@ -3,6 +3,7 @@ use crate::hospital::catalog_model::{DepartmentWithDiseasesDto, DiseaseDto};
 use crate::hospital::catalog_repository;
 use crate::state::AppState;
 
+/// 按条件查询列表数据。
 pub async fn list_departments(
     state: &AppState,
     include_diseases: bool,
@@ -34,6 +35,7 @@ pub async fn list_departments(
         .collect())
 }
 
+/// 按条件查询列表数据。
 pub async fn list_diseases_by_department(
     state: &AppState,
     dept_id: u64,

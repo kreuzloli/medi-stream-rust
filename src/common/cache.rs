@@ -7,6 +7,7 @@ use crate::error::AppError;
 use crate::state::AppState;
 use redis::AsyncCommands;
 
+/// 从 Redis 读取账号详情缓存；缓存不存在或不可解析时返回 None。
 pub async fn get_account(state: &mut AppState, id: u64) -> Result<Option<AccountDetail>, AppError> {
     if let Some(redis) = state.redis.as_mut() {
         let cached: Option<String> = redis.get(account_cache_key(id)).await?;
@@ -19,6 +20,7 @@ pub async fn get_account(state: &mut AppState, id: u64) -> Result<Option<Account
     Ok(None)
 }
 
+/// 写入缓存，减少后续数据库访问。
 pub async fn cache_account(state: &mut AppState, account: &AccountDetail) -> Result<(), AppError> {
     let Some(id) = account.profile.id else {
         return Ok(());
@@ -32,6 +34,7 @@ pub async fn cache_account(state: &mut AppState, account: &AccountDetail) -> Res
     Ok(())
 }
 
+/// 写入缓存，减少后续数据库访问。
 pub async fn cache_token(
     state: &mut AppState,
     account: &AccountDetail,
@@ -45,6 +48,7 @@ pub async fn cache_token(
     Ok(())
 }
 
+/// 删除账号详情缓存；Redis 不可用时直接跳过。
 pub async fn delete_account_cache(state: &mut AppState, id: u64) -> Result<(), AppError> {
     if let Some(redis) = state.redis.as_mut() {
         let _: () = redis.del(account_cache_key(id)).await?;
@@ -52,6 +56,7 @@ pub async fn delete_account_cache(state: &mut AppState, id: u64) -> Result<(), A
     Ok(())
 }
 
+/// 删除 token 缓存；Redis 不可用时直接跳过。
 pub async fn delete_token_cache(state: &mut AppState, token: &str) -> Result<(), AppError> {
     let key = token_cache_key(token);
     if let Some(redis) = state.redis.as_mut() {
@@ -60,6 +65,7 @@ pub async fn delete_token_cache(state: &mut AppState, token: &str) -> Result<(),
     Ok(())
 }
 
+/// 验证凭证或验证码是否有效。
 pub async fn verify_login_verification_code(
     state: &mut AppState,
     login_type: LoginType,
@@ -80,14 +86,17 @@ pub async fn verify_login_verification_code(
     Ok(())
 }
 
+/// 处理账号相关的业务转换。
 fn account_cache_key(id: u64) -> String {
     format!("{ACCOUNT_DETAIL_CACHE_PREFIX}{id}")
 }
 
+/// 生成 token 缓存 key。
 fn token_cache_key(token: &str) -> String {
     format!("{TOKEN_CACHE_PREFIX}{token}")
 }
 
+/// 处理登录相关的业务转换。
 fn login_verification_code_key(login_type: LoginType, login_identifier: &str) -> String {
     format!(
         "{}{}:{}",

@@ -9,6 +9,7 @@ use sqlx::mysql::MySqlPoolOptions;
 use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
 
+/// 启动服务：加载配置、初始化依赖并注册 HTTP 路由。
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // 读取项目根目录下的 .env。失败时忽略，方便线上继续使用系统环境变量。
@@ -63,6 +64,7 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// 等待终止信号，用于触发 Axum 优雅停机。
 async fn shutdown_signal() {
     // 等待 Ctrl+C，然后让 axum 优雅停止监听新请求。
     let _ = tokio::signal::ctrl_c().await;

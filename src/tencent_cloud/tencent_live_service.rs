@@ -19,6 +19,7 @@ use crate::{
     },
 };
 
+/// 调用腾讯云 Live API 查询直播流状态。
 pub async fn describe_live_stream_state(
     state: &AppState,
     req: &DescribeLiveStreamStateReq,
@@ -45,6 +46,7 @@ pub async fn describe_live_stream_state(
     Ok(resp)
 }
 
+/// 使用本地配置生成直播推流和播放 URL。
 pub fn generate_live_urls(
     state: &AppState,
     stream_name: &str,

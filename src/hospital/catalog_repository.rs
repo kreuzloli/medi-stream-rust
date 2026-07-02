@@ -3,6 +3,7 @@ use crate::hospital::catalog_model::{Department, Disease, DiseaseDto};
 use sqlx::{MySql, MySqlPool, QueryBuilder};
 use std::collections::BTreeMap;
 
+/// 按条件查询数据库记录。
 pub async fn find_active_departments(db: &MySqlPool) -> Result<Vec<Department>, AppError> {
     Ok(sqlx::query_as::<_, Department>(
         r#"
@@ -16,6 +17,7 @@ pub async fn find_active_departments(db: &MySqlPool) -> Result<Vec<Department>, 
     .await?)
 }
 
+/// 按条件查询数据库记录。
 pub async fn find_active_diseases_by_department(
     db: &MySqlPool,
     dept_id: u64,
@@ -33,6 +35,7 @@ pub async fn find_active_diseases_by_department(
     .await?)
 }
 
+/// 按条件查询数据库记录。
 pub async fn find_active_disease_map_by_departments(
     db: &MySqlPool,
     dept_ids: &[u64],

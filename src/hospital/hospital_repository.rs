@@ -3,6 +3,7 @@ use crate::error::AppError;
 use crate::hospital::hospital_model::{Hospital, HospitalPageQuery, SaveHospitalReq};
 use sqlx::{MySql, MySqlPool, QueryBuilder, Row};
 
+/// 向数据库插入记录，并返回新记录 ID。
 pub async fn insert_hospital(db: &MySqlPool, req: &SaveHospitalReq) -> Result<u64, AppError> {
     let result = sqlx::query(
         r#"
@@ -25,6 +26,7 @@ pub async fn insert_hospital(db: &MySqlPool, req: &SaveHospitalReq) -> Result<u6
     Ok(result.last_insert_id())
 }
 
+/// 按条件查询数据库记录。
 pub async fn find_hospital_by_id(db: &MySqlPool, id: u64) -> Result<Option<Hospital>, AppError> {
     Ok(sqlx::query_as::<_, Hospital>(
         r#"
@@ -40,6 +42,7 @@ pub async fn find_hospital_by_id(db: &MySqlPool, id: u64) -> Result<Option<Hospi
     .await?)
 }
 
+/// 更新业务数据，并在目标不存在时返回 NotFound。
 pub async fn update_hospital(
     db: &MySqlPool,
     id: u64,
@@ -68,6 +71,7 @@ pub async fn update_hospital(
     Ok(result.rows_affected() > 0)
 }
 
+/// 从 hospital 表物理删除一条医院记录。
 pub async fn delete_hospital(db: &MySqlPool, id: u64) -> Result<bool, AppError> {
     let result = sqlx::query("DELETE FROM hospital WHERE id = ?")
         .bind(id)
@@ -77,6 +81,7 @@ pub async fn delete_hospital(db: &MySqlPool, id: u64) -> Result<bool, AppError> 
     Ok(result.rows_affected() > 0)
 }
 
+/// 分页查询数据，并返回统一 Page 结构。
 pub async fn page_hospitals(
     db: &MySqlPool,
     query: HospitalPageQuery,
@@ -119,6 +124,7 @@ pub async fn page_hospitals(
     })
 }
 
+/// 向动态 SQL 追加查询条件。
 fn push_hospital_filters(query_builder: &mut QueryBuilder<MySql>, query: &HospitalPageQuery) {
     if let Some(hospital_name) = query
         .hospital_name
@@ -158,6 +164,7 @@ fn push_hospital_filters(query_builder: &mut QueryBuilder<MySql>, query: &Hospit
     }
 }
 
+/// 清理可选字符串，空白内容不写入数据库。
 fn trim_optional(value: &Option<String>) -> Option<String> {
     value
         .as_deref()

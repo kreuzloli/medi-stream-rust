@@ -8,6 +8,7 @@ use axum::routing::{delete, get, post};
 use axum::Router;
 use tower_http::cors::CorsLayer;
 
+/// 组装全局路由表，并把共享 AppState 注入到每个 handler。
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route(route::AUTH_LOGIN, post(auth_handlers::login))

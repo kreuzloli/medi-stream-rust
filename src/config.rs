@@ -19,6 +19,7 @@ pub struct Settings {
 }
 
 impl Settings {
+    /// 从环境变量读取运行配置，并做必要的类型转换。
     pub fn from_env() -> Result<Self> {
         Ok(Self {
             server_addr: env::var(env_constants::SERVER_ADDR)
@@ -56,6 +57,7 @@ impl Settings {
     }
 }
 
+/// 读取腾讯云直播 OpenAPI 凭证；未配置时返回 None。
 fn live_credential_from_env() -> Result<Option<LiveCredential>> {
     let secret_id = env::var(env_constants::TENCENT_LIVE_SECRET_ID).ok();
     let secret_key = env::var(env_constants::TENCENT_LIVE_SECRET_KEY).ok();
@@ -76,6 +78,7 @@ fn live_credential_from_env() -> Result<Option<LiveCredential>> {
     }
 }
 
+/// 读取腾讯云直播推流/播放 URL 生成配置。
 fn live_url_config_from_env() -> Result<Option<LiveUrlConfig>> {
     let app_name = optional_env(env_constants::TENCENT_LIVE_APP_NAME);
     let push_domain = optional_env(env_constants::TENCENT_LIVE_PUSH_DOMAIN);
@@ -118,6 +121,7 @@ fn live_url_config_from_env() -> Result<Option<LiveUrlConfig>> {
     }))
 }
 
+/// 读取非空环境变量，空字符串按未配置处理。
 fn optional_env(name: &str) -> Option<String> {
     env::var(name).ok().filter(|value| !value.trim().is_empty())
 }

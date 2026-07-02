@@ -7,6 +7,7 @@ use medi_stream_rust::tencent_cloud::tencent_live_url_generator::{
     build_live_urls, build_play_url, build_push_url, PlayProtocol,
 };
 
+/// 验证直播业务模型的核心行为。
 #[test]
 fn live_stream_state_request_rejects_blank_fields() {
     let req = DescribeLiveStreamStateReq {
@@ -22,6 +23,7 @@ fn live_stream_state_request_rejects_blank_fields() {
     assert!(err.to_string().contains("streamName不能为空"));
 }
 
+/// 验证直播业务模型的核心行为。
 #[test]
 fn live_authorization_uses_tencent_tc3_format() {
     let req = DescribeLiveStreamStateReq {
@@ -43,6 +45,7 @@ fn live_authorization_uses_tencent_tc3_format() {
     assert!(authorization.contains("Signature="));
 }
 
+/// 验证直播业务模型的核心行为。
 #[test]
 fn live_url_generator_builds_signed_push_and_play_urls() {
     let config = LiveUrlConfig {
@@ -110,6 +113,7 @@ fn live_url_generator_builds_signed_push_and_play_urls() {
     );
 }
 
+/// 验证直播业务模型的核心行为。
 #[test]
 fn live_url_generator_rejects_blank_stream_name() {
     let config = LiveUrlConfig {

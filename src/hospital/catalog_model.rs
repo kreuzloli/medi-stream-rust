@@ -34,6 +34,7 @@ pub struct DiseaseDto {
 }
 
 impl From<Disease> for DiseaseDto {
+    /// 把疾病数据库行转换成接口返回 DTO。
     fn from(value: Disease) -> Self {
         // From trait 是 Rust 常用的类型转换写法，这里相当于 Java 的 entity -> DTO。
         Self {
@@ -59,6 +60,7 @@ pub struct DepartmentWithDiseasesDto {
 }
 
 impl DepartmentWithDiseasesDto {
+    /// 把科室和疾病列表组装成科室 DTO。
     pub fn from_department(value: Department, diseases: Vec<DiseaseDto>) -> Self {
         // Vec<T> 是 Rust 的动态数组，对应 Java 里的 List<T>。
         Self {
@@ -71,10 +73,12 @@ impl DepartmentWithDiseasesDto {
         }
     }
 
+    /// 使用默认长度生成疾病名称预览。
     pub fn join_disease_names_ellipsis(&mut self) {
         self.join_disease_names_ellipsis_with_max(12);
     }
 
+    /// 按指定最大字符数生成疾病名称预览。
     pub fn join_disease_names_ellipsis_with_max(&mut self, max_len: usize) {
         // iter() 是借用遍历，不会消耗 diseases；collect::<Vec<_>>() 再 join 成字符串。
         let joined = self

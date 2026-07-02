@@ -16,6 +16,7 @@ pub struct LiveCredential {
     pub secret_key: String,
 }
 
+/// 按腾讯云 TC3-HMAC-SHA256 规则构造 Authorization 头。
 pub fn build_live_authorization<T>(
     credential: &LiveCredential,
     timestamp: i64,
@@ -62,11 +63,13 @@ where
     ))
 }
 
+/// 计算 SHA-256 小写十六进制摘要。
 fn sha256_hex(data: &[u8]) -> String {
     let digest = Sha256::digest(data);
     hex_lower(&digest)
 }
 
+/// 使用 HMAC-SHA256 对数据签名。
 fn hmac_sha256(key: &[u8], data: &[u8]) -> Result<Vec<u8>, AppError> {
     let mut mac = HmacSha256::new_from_slice(key)
         .map_err(|err| AppError::Internal(format!("create Tencent live signer failed: {err}")))?;
@@ -74,6 +77,7 @@ fn hmac_sha256(key: &[u8], data: &[u8]) -> Result<Vec<u8>, AppError> {
     Ok(mac.finalize().into_bytes().to_vec())
 }
 
+/// 把字节数组转换成小写十六进制字符串。
 fn hex_lower(data: &[u8]) -> String {
     const HEX: &[u8; 16] = b"0123456789abcdef";
     let mut out = String::with_capacity(data.len() * 2);

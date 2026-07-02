@@ -1,5 +1,6 @@
 use medi_stream_rust::hospital::catalog_model::{DepartmentWithDiseasesDto, DiseaseDto};
 
+/// 验证目录预览字段的拼接规则。
 #[test]
 fn preview_matches_java_full_catalog_rule() {
     let mut department = DepartmentWithDiseasesDto {
@@ -23,6 +24,7 @@ fn preview_matches_java_full_catalog_rule() {
     );
 }
 
+/// 构造测试用疾病 DTO，减少预览拼接测试里的样板代码。
 fn disease(id: u64, name: &str) -> DiseaseDto {
     DiseaseDto {
         id,

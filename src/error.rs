@@ -44,6 +44,7 @@ struct ErrorBody {
 }
 
 impl AppError {
+    /// 把业务错误类型映射成对外 HTTP 状态码。
     fn status(&self) -> StatusCode {
         // 把内部错误类型映射成 HTTP 状态码，集中处理比每个 handler 手写响应更稳定。
         match self {
@@ -61,6 +62,7 @@ impl AppError {
 }
 
 impl IntoResponse for AppError {
+    /// 把 AppError 转换成 Axum 可以直接返回的 JSON 响应。
     fn into_response(self) -> Response {
         // Axum 遇到 handler 返回 Err(AppError) 时，会调用这里生成最终 HTTP 响应。
         let status = self.status();

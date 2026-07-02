@@ -7,6 +7,7 @@ use crate::error::AppError;
 use sqlx::{MySql, MySqlPool, QueryBuilder, Row};
 use uuid::Uuid;
 
+/// 向数据库插入记录，并返回新记录 ID。
 pub async fn insert_account_with_logins(
     db: &MySqlPool,
     req: &CreateAccountReq,
@@ -82,6 +83,7 @@ pub async fn insert_account_with_logins(
     Ok(user_id)
 }
 
+/// 向数据库插入记录，并返回新记录 ID。
 pub async fn insert_login_account(
     db: &MySqlPool,
     user_id: u64,
@@ -125,6 +127,7 @@ pub async fn insert_login_account(
     Ok(result.last_insert_id())
 }
 
+/// 按条件查询数据库记录。
 pub async fn find_account_detail_by_id(
     db: &MySqlPool,
     id: u64,
@@ -139,6 +142,7 @@ pub async fn find_account_detail_by_id(
     }))
 }
 
+/// 按条件查询数据库记录。
 pub async fn find_user_profile_by_id(
     db: &MySqlPool,
     id: u64,
@@ -157,6 +161,7 @@ pub async fn find_user_profile_by_id(
     .await?)
 }
 
+/// 按条件查询数据库记录。
 pub async fn find_login_account_by_id(
     db: &MySqlPool,
     user_id: u64,
@@ -177,6 +182,7 @@ pub async fn find_login_account_by_id(
     .await?)
 }
 
+/// 按条件查询数据库记录。
 pub async fn find_login_accounts_by_user_id(
     db: &MySqlPool,
     user_id: u64,
@@ -196,6 +202,7 @@ pub async fn find_login_accounts_by_user_id(
     .await?)
 }
 
+/// 更新业务数据，并在目标不存在时返回 NotFound。
 pub async fn update_user_profile(
     db: &MySqlPool,
     id: u64,
@@ -228,6 +235,7 @@ pub async fn update_user_profile(
     Ok(result.rows_affected() > 0)
 }
 
+/// 执行逻辑删除，保留数据库记录用于历史追踪。
 pub async fn logical_delete_user(db: &MySqlPool, id: u64) -> Result<bool, AppError> {
     // 用户资料仍保留逻辑删除；登录绑定按“只保存/删除”的规则做物理删除。
     let mut tx = db.begin().await?;
@@ -249,6 +257,7 @@ pub async fn logical_delete_user(db: &MySqlPool, id: u64) -> Result<bool, AppErr
     Ok(result.rows_affected() > 0)
 }
 
+/// 物理删除指定用户下的一条登录绑定。
 pub async fn delete_login_account(
     db: &MySqlPool,
     user_id: u64,
@@ -268,6 +277,7 @@ pub async fn delete_login_account(
     Ok(result.rows_affected() > 0)
 }
 
+/// 分页查询数据，并返回统一 Page 结构。
 pub async fn page_user_profiles(
     db: &MySqlPool,
     query: AccountPageQuery,
@@ -311,6 +321,7 @@ pub async fn page_user_profiles(
     })
 }
 
+/// 按条件查询数据库记录。
 pub async fn find_login_for_auth(
     db: &MySqlPool,
     login_type: LoginType,
@@ -338,6 +349,7 @@ pub async fn find_login_for_auth(
     .await?)
 }
 
+/// 按条件查询数据库记录。
 pub async fn find_login_for_auth_by_union_id(
     db: &MySqlPool,
     login_type: LoginType,
@@ -364,6 +376,7 @@ pub async fn find_login_for_auth_by_union_id(
     .await?)
 }
 
+/// 更新登录绑定的最近登录时间和更新时间。
 pub async fn touch_last_login(
     db: &MySqlPool,
     user_id: u64,
@@ -383,6 +396,7 @@ pub async fn touch_last_login(
     Ok(())
 }
 
+/// 向动态 SQL 追加查询条件。
 fn push_profile_filters(query_builder: &mut QueryBuilder<MySql>, query: &AccountPageQuery) {
     if let Some(user_code) = query
         .user_code

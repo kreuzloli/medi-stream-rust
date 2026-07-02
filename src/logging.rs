@@ -7,6 +7,7 @@ use tracing_subscriber::EnvFilter;
 const LOG_DIR: &str = "logs";
 const LOG_FILE_PREFIX: &str = "medi-stream-rust.log";
 
+/// 初始化控制台和文件日志，并返回必须持有的日志 guard。
 pub fn init() -> WorkerGuard {
     let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 

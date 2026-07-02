@@ -16,6 +16,7 @@ use argon2::Argon2;
 use rand_core::OsRng;
 use std::collections::HashSet;
 
+/// 校验注册账号请求，包含用户资料和登录绑定规则。
 pub fn validate_create_account_req(req: &CreateAccountReq) -> Result<(), AppError> {
     validate_profile_fields(
         &req.real_name,
@@ -32,6 +33,7 @@ pub fn validate_create_account_req(req: &CreateAccountReq) -> Result<(), AppErro
     Ok(())
 }
 
+/// 校验用户资料更新请求，不处理登录凭证字段。
 pub fn validate_update_user_profile_req(req: &UpdateUserProfileReq) -> Result<(), AppError> {
     validate_profile_fields(
         &req.real_name,
@@ -42,6 +44,7 @@ pub fn validate_update_user_profile_req(req: &UpdateUserProfileReq) -> Result<()
     )
 }
 
+/// 校验单个登录绑定请求，例如邮箱密码、状态值和登录标识。
 pub fn validate_create_login_account_req(req: &CreateLoginAccountReq) -> Result<(), AppError> {
     validate_login_identifier(req.login_identifier.as_str())?;
     // 只有本地登录方式需要密码；第三方登录的凭证由外部平台证明身份。
@@ -57,6 +60,7 @@ pub fn validate_create_login_account_req(req: &CreateLoginAccountReq) -> Result<
     Ok(())
 }
 
+/// 校验注册时不同登录方式要求的附加参数。
 fn validate_register_login_type_params(
     req: &CreateAccountReq,
     logins: &[CreateLoginAccountReq],
@@ -75,6 +79,7 @@ fn validate_register_login_type_params(
     Ok(())
 }
 
+/// 处理账号相关的业务转换。
 pub fn account_login_reqs(req: &CreateAccountReq) -> Result<Vec<CreateLoginAccountReq>, AppError> {
     let mut logins = if req.login_accounts.is_empty() {
         legacy_login_reqs(req)
@@ -109,6 +114,7 @@ pub fn account_login_reqs(req: &CreateAccountReq) -> Result<Vec<CreateLoginAccou
     Ok(logins)
 }
 
+/// 生成安全哈希值用于后续校验。
 pub fn hash_password(password: &str) -> Result<String, AppError> {
     // Argon2 输出里包含算法参数和 salt，保存这一串即可支持后续 verify。
     let salt = SaltString::generate(&mut OsRng);
@@ -118,6 +124,7 @@ pub fn hash_password(password: &str) -> Result<String, AppError> {
         .map_err(|err| AppError::Internal(err.to_string()))
 }
 
+/// 验证凭证或验证码是否有效。
 pub fn verify_password(password: &str, hash: &str) -> Result<bool, AppError> {
     let parsed_hash = PasswordHash::new(hash).map_err(|err| AppError::Internal(err.to_string()))?;
     Ok(Argon2::default()
@@ -125,6 +132,7 @@ pub fn verify_password(password: &str, hash: &str) -> Result<bool, AppError> {
         .is_ok())
 }
 
+/// 读取必填字段，缺失或空值时返回业务错误。
 pub fn require_login_identifier(
     login_type: LoginType,
     login_identifier: Option<&str>,
@@ -139,6 +147,7 @@ pub fn require_login_identifier(
     Ok(identifier.to_string())
 }
 
+/// 读取必填字段，缺失或空值时返回业务错误。
 pub fn require_login_password(password: Option<&str>) -> Result<String, AppError> {
     password
         .map(str::trim)
@@ -147,6 +156,7 @@ pub fn require_login_password(password: Option<&str>) -> Result<String, AppError
         .ok_or_else(|| AppError::BadRequest("密码不能为空".to_string()))
 }
 
+/// 读取必填字段，缺失或空值时返回业务错误。
 pub fn require_login_verification_code(
     verification_code: Option<&str>,
 ) -> Result<String, AppError> {
@@ -157,6 +167,7 @@ pub fn require_login_verification_code(
         .ok_or_else(|| AppError::BadRequest("验证码不能为空".to_string()))
 }
 
+/// 读取必填字段，缺失或空值时返回业务错误。
 pub fn require_third_party_union_id(
     third_party_union_id: Option<&str>,
 ) -> Result<String, AppError> {
@@ -167,6 +178,7 @@ pub fn require_third_party_union_id(
         .ok_or_else(|| AppError::BadRequest("thirdPartyUnionId不能为空".to_string()))
 }
 
+/// 校验需要验证的登录方式是否已经完成验证。
 pub fn validate_verified_login_account(
     login_type: LoginType,
     is_verified: i32,
@@ -182,6 +194,7 @@ pub fn validate_verified_login_account(
     }
 }
 
+/// 处理登录相关的业务转换。
 pub fn login_password_hash(req: &CreateLoginAccountReq) -> Result<Option<String>, AppError> {
     if req.login_type.needs_local_password() {
         let password = req
@@ -193,6 +206,7 @@ pub fn login_password_hash(req: &CreateLoginAccountReq) -> Result<Option<String>
     Ok(None)
 }
 
+/// 处理账号相关的业务转换。
 pub fn account_token_subject(account: &AccountDetail) -> String {
     account
         .login_accounts
@@ -201,12 +215,14 @@ pub fn account_token_subject(account: &AccountDetail) -> String {
         .unwrap_or_else(|| account.profile.real_name.clone())
 }
 
+/// 读取必填字段，缺失或空值时返回业务错误。
 pub fn require_claim_user_id(claims: &Claims) -> Result<u64, AppError> {
     claims
         .uid
         .ok_or_else(|| AppError::Unauthorized("Token missing user id".to_string()))
 }
 
+/// 创建业务数据，并返回创建后的记录。
 pub async fn create_account(
     state: &mut AppState,
     req: CreateAccountReq,
@@ -226,6 +242,7 @@ pub async fn create_account(
     Ok(account)
 }
 
+/// 更新业务数据，并在目标不存在时返回 NotFound。
 pub async fn update_profile(
     state: &mut AppState,
     id: u64,
@@ -237,6 +254,7 @@ pub async fn update_profile(
     Ok(ok)
 }
 
+/// 给当前用户新增一条登录绑定，并清理账号缓存。
 pub async fn bind_account(
     state: &mut AppState,
     user_id: u64,
@@ -252,12 +270,14 @@ pub async fn bind_account(
         .ok_or_else(|| AppError::NotFound("login account not found".to_string()))
 }
 
+/// 逻辑删除用户资料，并清理对应账号缓存。
 pub async fn delete_account(state: &mut AppState, id: u64) -> Result<bool, AppError> {
     let ok = account_repository::logical_delete_user(&state.db, id).await?;
     cache::delete_account_cache(state, id).await?;
     Ok(ok)
 }
 
+/// 删除当前用户的一条登录绑定，并清理账号缓存。
 pub async fn unbind_account(
     state: &mut AppState,
     user_id: u64,
@@ -268,6 +288,7 @@ pub async fn unbind_account(
     Ok(ok)
 }
 
+/// 兼容旧请求结构，转换成当前统一模型。
 fn legacy_login_reqs(req: &CreateAccountReq) -> Vec<CreateLoginAccountReq> {
     let mut logins = Vec::new();
     if let Some(email) = req
@@ -313,6 +334,7 @@ fn legacy_login_reqs(req: &CreateAccountReq) -> Vec<CreateLoginAccountReq> {
     logins
 }
 
+/// 规范化请求字段，避免保存多余或不一致的数据。
 fn normalize_login_account(login: &mut CreateLoginAccountReq) {
     login.login_identifier = login.login_identifier.trim().to_string();
     if matches!(login.login_type, LoginType::Email | LoginType::Phone) {
@@ -323,6 +345,7 @@ fn normalize_login_account(login: &mut CreateLoginAccountReq) {
     }
 }
 
+/// 处理登录相关的业务转换。
 fn login_account_for_save(req: &CreateLoginAccountReq) -> Result<LoginAccountForSave, AppError> {
     let mut login = req.clone();
     normalize_login_account(&mut login);
@@ -337,6 +360,7 @@ fn login_account_for_save(req: &CreateLoginAccountReq) -> Result<LoginAccountFor
     })
 }
 
+/// 校验用户资料公共字段，例如姓名、医院、科室、身份和状态。
 fn validate_profile_fields(
     real_name: &str,
     hospital_id: u64,
@@ -363,6 +387,7 @@ fn validate_profile_fields(
     validate_status(status)
 }
 
+/// 校验登录标识不能为空。
 fn validate_login_identifier(login_identifier: &str) -> Result<(), AppError> {
     if login_identifier.trim().is_empty() {
         return Err(AppError::BadRequest("登录标识不能为空".to_string()));
@@ -370,6 +395,7 @@ fn validate_login_identifier(login_identifier: &str) -> Result<(), AppError> {
     Ok(())
 }
 
+/// 校验通用启用/禁用状态值。
 fn validate_status(status: Option<i32>) -> Result<(), AppError> {
     if let Some(status) = status {
         if !matches!(status, STATUS_DISABLED | STATUS_ENABLED) {

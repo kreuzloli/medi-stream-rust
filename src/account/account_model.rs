@@ -16,6 +16,7 @@ pub enum LoginType {
 
 impl LoginType {
     // 数据库存的是大写字符串，统一从这里转换，避免 SQL 里散落硬编码。
+    /// 返回数据库里保存的登录方式字符串。
     pub fn as_str(self) -> &'static str {
         match self {
             LoginType::Email => LOGIN_TYPE_EMAIL,
@@ -26,10 +27,12 @@ impl LoginType {
     }
 
     // 只有邮箱注册需要本地密码；手机、微信、GitHub 不在本表保存密码。
+    /// 判断当前登录方式是否需要本地密码哈希。
     pub fn needs_local_password(self) -> bool {
         matches!(self, LoginType::Email)
     }
 
+    /// 把请求里的登录方式字符串转换成枚举值。
     fn from_request_value(value: &str) -> Option<Self> {
         match value.trim().to_ascii_uppercase().as_str() {
             LOGIN_TYPE_EMAIL => Some(LoginType::Email),
@@ -42,6 +45,7 @@ impl LoginType {
 }
 
 impl<'de> Deserialize<'de> for LoginType {
+    /// 自定义反序列化，拒绝不支持的 loginType。
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,

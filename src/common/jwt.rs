@@ -30,6 +30,7 @@ pub struct Claims {
 }
 
 impl JwtKeys {
+    /// 根据应用配置创建 JWT 编码和解码密钥。
     pub fn from_settings(settings: &Settings) -> anyhow::Result<Self> {
         // Java 配置里 secret 是 Base64；Rust 这里先解码成原始字节再创建 HMAC key。
         let secret = STANDARD.decode(&settings.jwt_secret_base64)?;
@@ -41,6 +42,7 @@ impl JwtKeys {
         })
     }
 
+    /// 根据用户名、角色和用户 ID 签发 JWT。
     pub fn generate_token(
         &self,
         username: &str,
@@ -67,6 +69,7 @@ impl JwtKeys {
         )?)
     }
 
+    /// 解析并校验输入数据。
     pub fn decode_token(&self, token: &str) -> Result<Claims, AppError> {
         // 只允许 HS256，并校验 issuer，避免误收其他系统签发的 token。
         let mut validation = Validation::new(Algorithm::HS256);
@@ -74,6 +77,7 @@ impl JwtKeys {
         Ok(decode::<Claims>(token, &self.decoding, &validation)?.claims)
     }
 
+    /// 读取必填字段，缺失或空值时返回业务错误。
     pub fn require_headers(&self, headers: &HeaderMap) -> Result<Claims, AppError> {
         // 这里等价于 Java JwtAuthFilter 里读取 Authorization: Bearer xxx。
         let auth = headers
@@ -86,6 +90,7 @@ impl JwtKeys {
         self.decode_token(token)
     }
 
+    /// 从请求头提取 Bearer token 原文。
     pub fn get_token_from_headers(&self, headers: &HeaderMap) -> Result<String, AppError> {
         let auth = headers
             .get(axum::http::header::AUTHORIZATION)

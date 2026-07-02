@@ -20,10 +20,12 @@ pub struct LoginReq {
     verification_code: Option<String>,
 }
 
+/// 处理登录请求，按登录方式校验凭证并签发 JWT。
 pub async fn login(
     State(mut state): State<AppState>,
     Json(req): Json<LoginReq>,
 ) -> Result<Json<RegisterResp>, AppError> {
+    tracing::info!(login_type = ?req.login_type, "login request received");
     let login_account = match req.login_type {
         LoginType::Email => {
             let login_identifier = account_service::require_login_identifier(
@@ -109,9 +111,15 @@ pub async fn login(
     )
     .await?;
     cache::cache_token(&mut state, &account, &token).await?;
+    tracing::info!(
+        user_id = uid,
+        login_type = ?req.login_type,
+        "login succeeded"
+    );
     Ok(Json(RegisterResp { token }))
 }
 
+/// 返回当前 JWT 中的用户身份和角色信息。
 pub async fn me(
     headers: HeaderMap,
     State(state): State<AppState>,
@@ -126,24 +134,30 @@ pub async fn me(
     })))
 }
 
+/// 注销当前 token，并删除 token 缓存。
 pub async fn logout(
     headers: HeaderMap,
     State(mut state): State<AppState>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    tracing::info!("logout headers: {:?}", headers);
+    let claims = state.jwt.require_headers(&headers)?;
+    let user_id = account_service::require_claim_user_id(&claims)?;
     let token = state.jwt.get_token_from_headers(&headers)?;
-    tracing::info!("logout token: {:?}", token);
     cache::delete_token_cache(&mut state, &token).await?;
+    tracing::info!(user_id, "logout succeeded");
     Ok(Json(json!({ "ok": true })))
 }
 
+/// 处理注册请求，创建账号后立即签发 JWT。
 pub async fn register(
     State(mut state): State<AppState>,
     Json(req): Json<CreateAccountReq>,
 ) -> Result<Json<RegisterResp>, AppError> {
-    tracing::info!("register req: {:?}", req);
+    tracing::info!(
+        has_legacy_login = req.login_type.is_some(),
+        login_account_count = req.login_accounts.len(),
+        "register request received"
+    );
     let account = account_service::create_account(&mut state, req).await?;
-    tracing::info!("register account: {:?}", account);
     let uid = account
         .profile
         .id
@@ -153,7 +167,7 @@ pub async fn register(
         vec![ROLE_USER.to_string()],
         Some(uid),
     )?;
-    tracing::info!("register token: {:?}", token);
     cache::cache_token(&mut state, &account, &token).await?;
+    tracing::info!(user_id = uid, "register succeeded");
     Ok(Json(RegisterResp { token }))
 }
