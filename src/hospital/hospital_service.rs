@@ -1,3 +1,4 @@
+use crate::common::constants::account::{STATUS_DISABLED, STATUS_ENABLED};
 use crate::common::Page;
 use crate::error::AppError;
 use crate::hospital::hospital_model::{Hospital, HospitalPageQuery, SaveHospitalReq};
@@ -55,7 +56,7 @@ pub async fn page_hospitals(
 
 fn validate_status(status: Option<i32>) -> Result<(), AppError> {
     if let Some(status) = status {
-        if !matches!(status, 0 | 1) {
+        if !matches!(status, STATUS_DISABLED | STATUS_ENABLED) {
             return Err(AppError::BadRequest("状态只能是0或1".to_string()));
         }
     }

@@ -4,6 +4,10 @@ use crate::account::account_model::{
 };
 use crate::account::account_repository;
 use crate::common::cache;
+use crate::common::constants::account::{
+    IDENTITY_MEDICAL_WORKER, IDENTITY_NON_MEDICAL_WORKER, MAX_LOGIN_ACCOUNT_COUNT, STATUS_DISABLED,
+    STATUS_ENABLED,
+};
 use crate::common::jwt::Claims;
 use crate::error::AppError;
 use crate::state::AppState;
@@ -11,9 +15,6 @@ use argon2::password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, Salt
 use argon2::Argon2;
 use rand_core::OsRng;
 use std::collections::HashSet;
-
-const MEDICAL_WORKER: &str = "MEDICAL_WORKER";
-const NON_MEDICAL_WORKER: &str = "NON_MEDICAL_WORKER";
 
 pub fn validate_create_account_req(req: &CreateAccountReq) -> Result<(), AppError> {
     validate_profile_fields(
@@ -84,7 +85,7 @@ pub fn account_login_reqs(req: &CreateAccountReq) -> Result<Vec<CreateLoginAccou
     if logins.is_empty() {
         return Err(AppError::BadRequest("至少绑定一个登录账户".to_string()));
     }
-    if logins.len() > 4 {
+    if logins.len() > MAX_LOGIN_ACCOUNT_COUNT {
         return Err(AppError::BadRequest("登录方式最多绑定4个".to_string()));
     }
 
@@ -352,7 +353,11 @@ fn validate_profile_fields(
     if dept_id == 0 {
         return Err(AppError::BadRequest("科室不能为空".to_string()));
     }
-    if !matches!(identity_type, MEDICAL_WORKER | NON_MEDICAL_WORKER) {
+
+    if !matches!(
+        identity_type,
+        IDENTITY_MEDICAL_WORKER | IDENTITY_NON_MEDICAL_WORKER
+    ) {
         return Err(AppError::BadRequest("身份类型不正确".to_string()));
     }
     validate_status(status)
@@ -367,7 +372,7 @@ fn validate_login_identifier(login_identifier: &str) -> Result<(), AppError> {
 
 fn validate_status(status: Option<i32>) -> Result<(), AppError> {
     if let Some(status) = status {
-        if !matches!(status, 0 | 1) {
+        if !matches!(status, STATUS_DISABLED | STATUS_ENABLED) {
             return Err(AppError::BadRequest("状态只能是0或1".to_string()));
         }
     }

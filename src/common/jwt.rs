@@ -6,6 +6,7 @@ use base64::Engine;
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
+use crate::common::constants::auth::BEARER_PREFIX;
 
 #[derive(Clone)]
 pub struct JwtKeys {
@@ -80,7 +81,7 @@ impl JwtKeys {
             .and_then(|value| value.to_str().ok())
             .ok_or_else(|| AppError::Unauthorized("Missing token".to_string()))?;
         let token = auth
-            .strip_prefix("Bearer ")
+            .strip_prefix(BEARER_PREFIX)
             .ok_or_else(|| AppError::Unauthorized("Invalid token".to_string()))?;
         self.decode_token(token)
     }
@@ -91,7 +92,7 @@ impl JwtKeys {
             .and_then(|value| value.to_str().ok())
             .ok_or_else(|| AppError::Unauthorized("Missing token".to_string()))?;
         let token = auth
-            .strip_prefix("Bearer ")
+            .strip_prefix(BEARER_PREFIX)
             .ok_or_else(|| AppError::Unauthorized("Invalid token".to_string()))?;
         Ok(token.to_string())
     }

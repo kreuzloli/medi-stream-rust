@@ -1,3 +1,6 @@
+use crate::common::constants::account::{
+    LOGIN_TYPE_EMAIL, LOGIN_TYPE_GITHUB, LOGIN_TYPE_PHONE, LOGIN_TYPE_WECHAT,
+};
 use chrono::NaiveDateTime;
 use serde::{de, Deserialize, Deserializer, Serialize};
 use sqlx::FromRow;
@@ -15,10 +18,10 @@ impl LoginType {
     // 数据库存的是大写字符串，统一从这里转换，避免 SQL 里散落硬编码。
     pub fn as_str(self) -> &'static str {
         match self {
-            LoginType::Email => "EMAIL",
-            LoginType::Phone => "PHONE",
-            LoginType::Wechat => "WECHAT",
-            LoginType::Github => "GITHUB",
+            LoginType::Email => LOGIN_TYPE_EMAIL,
+            LoginType::Phone => LOGIN_TYPE_PHONE,
+            LoginType::Wechat => LOGIN_TYPE_WECHAT,
+            LoginType::Github => LOGIN_TYPE_GITHUB,
         }
     }
 
@@ -29,10 +32,10 @@ impl LoginType {
 
     fn from_request_value(value: &str) -> Option<Self> {
         match value.trim().to_ascii_uppercase().as_str() {
-            "EMAIL" => Some(LoginType::Email),
-            "PHONE" => Some(LoginType::Phone),
-            "WECHAT" => Some(LoginType::Wechat),
-            "GITHUB" => Some(LoginType::Github),
+            LOGIN_TYPE_EMAIL => Some(LoginType::Email),
+            LOGIN_TYPE_PHONE => Some(LoginType::Phone),
+            LOGIN_TYPE_WECHAT => Some(LoginType::Wechat),
+            LOGIN_TYPE_GITHUB => Some(LoginType::Github),
             _ => None,
         }
     }

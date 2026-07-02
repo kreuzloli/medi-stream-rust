@@ -1,6 +1,7 @@
 use crate::account::account_model::{CreateAccountReq, LoginType, RegisterResp};
 use crate::account::{account_repository, account_service};
 use crate::common::cache;
+use crate::common::constants::auth::ROLE_USER;
 use crate::error::AppError;
 use crate::state::AppState;
 use axum::extract::State;
@@ -98,7 +99,7 @@ pub async fn login(
         .ok_or_else(|| AppError::Internal("login account has no user id".to_string()))?;
     let token = state.jwt.generate_token(
         &account_service::account_token_subject(&account),
-        vec!["USER".to_string()],
+        vec![ROLE_USER.to_string()],
         Some(uid),
     )?;
     account_repository::touch_last_login(
@@ -149,7 +150,7 @@ pub async fn register(
         .ok_or_else(|| AppError::Internal("registered account has no id".to_string()))?;
     let token = state.jwt.generate_token(
         &account_service::account_token_subject(&account),
-        vec!["USER".to_string()],
+        vec![ROLE_USER.to_string()],
         Some(uid),
     )?;
     tracing::info!("register token: {:?}", token);
