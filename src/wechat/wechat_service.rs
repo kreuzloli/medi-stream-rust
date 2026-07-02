@@ -1,5 +1,6 @@
 use crate::error::AppError;
 use crate::state::AppState;
+use crate::wechat::wechat_model::WechatAccessTokenResp;
 
 pub async fn fetch_wechat_access_token(
     state: &AppState,

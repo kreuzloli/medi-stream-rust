@@ -9,3 +9,5 @@ pub mod hospital;
 pub mod logging;
 pub mod routes;
 pub mod state;
+pub mod wechat;
+pub mod tencent_cloud;
