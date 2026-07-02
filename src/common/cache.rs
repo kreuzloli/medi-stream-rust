@@ -1,11 +1,11 @@
 use crate::account::account_model::{AccountDetail, LoginType};
+use crate::common::constants::cache::{
+    ACCOUNT_CACHE_SECONDS, ACCOUNT_DETAIL_CACHE_PREFIX, LOGIN_VERIFICATION_CODE_PREFIX,
+    TOKEN_CACHE_PREFIX,
+};
 use crate::error::AppError;
 use crate::state::AppState;
 use redis::AsyncCommands;
-
-const ACCOUNT_DETAIL_CACHE_PREFIX: &str = "account_detail:";
-const ACCOUNT_CACHE_SECONDS: u64 = 10 * 60;
-const LOGIN_VERIFICATION_CODE_PREFIX: &str = "login_verification_code:";
 
 pub async fn get_account(state: &mut AppState, id: u64) -> Result<Option<AccountDetail>, AppError> {
     if let Some(redis) = state.redis.as_mut() {
@@ -37,7 +37,7 @@ pub async fn cache_token(
     account: &AccountDetail,
     token: &str,
 ) -> Result<(), AppError> {
-    let key = format!("token:{}", token);
+    let key = token_cache_key(token);
     if let Some(redis) = state.redis.as_mut() {
         let json = serde_json::to_string(account)?;
         let _: () = redis.set_ex(key, json, ACCOUNT_CACHE_SECONDS).await?;
@@ -53,7 +53,7 @@ pub async fn delete_account_cache(state: &mut AppState, id: u64) -> Result<(), A
 }
 
 pub async fn delete_token_cache(state: &mut AppState, token: &str) -> Result<(), AppError> {
-    let key = format!("token:{}", token);
+    let key = token_cache_key(token);
     if let Some(redis) = state.redis.as_mut() {
         let _: () = redis.del(key).await?;
     }
@@ -82,6 +82,10 @@ pub async fn verify_login_verification_code(
 
 fn account_cache_key(id: u64) -> String {
     format!("{ACCOUNT_DETAIL_CACHE_PREFIX}{id}")
+}
+
+fn token_cache_key(token: &str) -> String {
+    format!("{TOKEN_CACHE_PREFIX}{token}")
 }
 
 fn login_verification_code_key(login_type: LoginType, login_identifier: &str) -> String {
