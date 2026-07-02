@@ -21,6 +21,18 @@ pub enum AppError {
     Jwt(#[from] jsonwebtoken::errors::Error),
     #[error(transparent)]
     Json(#[from] serde_json::Error),
+    // reqwest 自身错误：比如网络断了、DNS 失败、响应 JSON 解析失败等。
+    #[error(transparent)]
+    Http(#[from] reqwest::Error),
+    // 外部 API 返回了非 2xx 状态码。
+    // 比如微信返回 400，腾讯云返回 403，这种不是我们服务内部崩了，
+    // 而是外部服务明确告诉我们“请求不对”。
+    #[error("external api error, service={service}, status={status}, body={body}")]
+    ExternalApi {
+        service: String,
+        status: u16,
+        body: String,
+    },
     #[error("{0}")]
     Internal(String),
 }
@@ -38,6 +50,8 @@ impl AppError {
             AppError::BadRequest(_) => StatusCode::BAD_REQUEST,
             AppError::Unauthorized(_) | AppError::Jwt(_) => StatusCode::UNAUTHORIZED,
             AppError::NotFound(_) => StatusCode::NOT_FOUND,
+            // 外部服务调用失败，对前端来说更接近“网关/上游服务失败”。
+            AppError::Http(_) | AppError::ExternalApi { .. } => StatusCode::BAD_GATEWAY,
             AppError::Database(_)
             | AppError::Redis(_)
             | AppError::Json(_)

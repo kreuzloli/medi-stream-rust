@@ -14,6 +14,8 @@ pub struct Settings {
     pub jwt_issuer: String,
     pub jwt_ttl_seconds: i64,
     pub mysql_max_connections: u32,
+    // 外部 HTTP API 请求超时时间，单位：秒。
+    pub http_timeout_seconds: u64,
 }
 
 impl Settings {
@@ -36,6 +38,10 @@ impl Settings {
                 .unwrap_or_else(|_| "10".to_string())
                 .parse()
                 .context("invalid MYSQL_MAX_CONNECTIONS")?,
+            http_timeout_seconds: env::var("HTTP_TIMEOUT_SECONDS")
+                .unwrap_or_else(|_| "10".to_string())
+                .parse()
+                .context("invalid HTTP_TIMEOUT_SECONDS")?,
         })
     }
 }

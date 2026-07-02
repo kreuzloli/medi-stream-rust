@@ -1,4 +1,4 @@
-use crate::common::JwtKeys;
+use crate::common::{HttpClient, JwtKeys};
 use redis::aio::ConnectionManager;
 use sqlx::MySqlPool;
 
@@ -10,4 +10,6 @@ pub struct AppState {
     pub redis: Option<ConnectionManager>,
     // JwtKeys 保存签发和校验 token 所需的密钥。
     pub jwt: JwtKeys,
+    // 统一 HTTP 客户端。
+    pub http: HttpClient,
 }

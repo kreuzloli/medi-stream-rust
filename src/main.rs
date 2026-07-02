@@ -1,5 +1,5 @@
 use anyhow::Context;
-use medi_stream_rust::common::JwtKeys;
+use medi_stream_rust::common::{HttpClient, JwtKeys};
 use medi_stream_rust::config::Settings;
 use medi_stream_rust::logging;
 use medi_stream_rust::routes::router;
@@ -41,12 +41,13 @@ async fn main() -> anyhow::Result<()> {
             None
         }
     };
-
+    let http = HttpClient::new(settings.http_timeout_seconds)?;
     // AppState 相当于 Spring Bean 容器里常用的共享依赖：数据库、Redis、JWT 工具。
     let state = AppState {
         db,
         redis,
         jwt: JwtKeys::from_settings(&settings)?,
+        http,
     };
 
     // Axum 的 Router 类似 Spring Controller 的路由注册表。
