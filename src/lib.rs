@@ -2,10 +2,10 @@
 // medi_stream_rust::xxx 的形式复用这些代码。
 pub mod account;
 pub mod auth;
-pub mod catalog;
 pub mod common;
 pub mod config;
 pub mod error;
+pub mod hospital;
 pub mod logging;
 pub mod routes;
 pub mod state;

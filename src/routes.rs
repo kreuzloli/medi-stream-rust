@@ -1,8 +1,8 @@
 use crate::account::handlers as account_handlers;
 use crate::auth::handlers as auth_handlers;
-use crate::catalog::handlers as catalog_handlers;
+use crate::hospital::handlers as hospital_handlers;
 use crate::state::AppState;
-use axum::routing::{get, post};
+use axum::routing::{delete, get, post};
 use axum::Router;
 use tower_http::cors::CorsLayer;
 
@@ -13,18 +13,28 @@ pub fn router(state: AppState) -> Router {
         .route("/auth/login", post(auth_handlers::login))
         .route("/auth/logout", get(auth_handlers::logout))
         .route("/auth/me", get(auth_handlers::me))
-        .route("/catalog/departments", get(catalog_handlers::departments))
+        .route("/catalog/departments", get(hospital_handlers::departments))
         .route(
             "/catalog/departments/:dept_id/diseases",
-            get(catalog_handlers::diseases_by_department),
+            get(hospital_handlers::diseases_by_department),
         )
-        .route("/catalog/full", get(catalog_handlers::full_catalog))
+        .route("/catalog/full", get(hospital_handlers::full_catalog))
+        .route(
+            "/hospitals",
+            get(hospital_handlers::page_hospitals).post(hospital_handlers::create_hospital),
+        )
+        .route(
+            "/hospitals/:id",
+            get(hospital_handlers::get_hospital)
+                .put(hospital_handlers::update_hospital)
+                .delete(hospital_handlers::delete_hospital),
+        )
         .route("/auth/register", post(auth_handlers::register))
         .route("/account", get(account_handlers::get_account))
         .route("/account/bind/login", post(account_handlers::bind_account))
         .route(
             "/account/unbind/:login_id",
-            axum::routing::delete(account_handlers::unbind_account),
+            delete(account_handlers::unbind_account),
         )
         // 当前先放开 CORS，方便前端本地调试；上线时可以改成白名单域名。
         .layer(CorsLayer::permissive())

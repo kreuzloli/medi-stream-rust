@@ -1,5 +1,5 @@
-use crate::catalog::catalog_model::{Department, Disease, DiseaseDto};
 use crate::error::AppError;
+use crate::hospital::catalog_model::{Department, Disease, DiseaseDto};
 use sqlx::{MySql, MySqlPool, QueryBuilder};
 use std::collections::BTreeMap;
 

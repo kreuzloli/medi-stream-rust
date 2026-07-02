@@ -1,6 +1,6 @@
-use crate::catalog::catalog_model::{DepartmentWithDiseasesDto, DiseaseDto};
-use crate::catalog::catalog_repository;
 use crate::error::AppError;
+use crate::hospital::catalog_model::{DepartmentWithDiseasesDto, DiseaseDto};
+use crate::hospital::catalog_repository;
 use crate::state::AppState;
 
 pub async fn list_departments(

@@ -1,6 +1,9 @@
-use crate::catalog::catalog_model::{DepartmentQuery, DepartmentWithDiseasesDto, DiseaseDto};
-use crate::catalog::catalog_service;
+use crate::common::Page;
 use crate::error::AppError;
+use crate::hospital::catalog_model::{DepartmentQuery, DepartmentWithDiseasesDto, DiseaseDto};
+use crate::hospital::catalog_service;
+use crate::hospital::hospital_model::{Hospital, HospitalPageQuery, SaveHospitalReq};
+use crate::hospital::hospital_service;
 use crate::state::AppState;
 use axum::extract::{Path, Query, State};
 use axum::Json;
@@ -58,4 +61,42 @@ pub async fn full_catalog(
     }
 
     Ok(Json(catalog))
+}
+
+pub async fn page_hospitals(
+    State(state): State<AppState>,
+    Query(query): Query<HospitalPageQuery>,
+) -> Result<Json<Page<Hospital>>, AppError> {
+    Ok(Json(hospital_service::page_hospitals(&state, query).await?))
+}
+
+pub async fn get_hospital(
+    State(state): State<AppState>,
+    Path(id): Path<u64>,
+) -> Result<Json<Option<Hospital>>, AppError> {
+    Ok(Json(hospital_service::get_hospital(&state, id).await?))
+}
+
+pub async fn create_hospital(
+    State(state): State<AppState>,
+    Json(req): Json<SaveHospitalReq>,
+) -> Result<Json<Hospital>, AppError> {
+    Ok(Json(hospital_service::create_hospital(&state, req).await?))
+}
+
+pub async fn update_hospital(
+    State(state): State<AppState>,
+    Path(id): Path<u64>,
+    Json(req): Json<SaveHospitalReq>,
+) -> Result<Json<Hospital>, AppError> {
+    Ok(Json(
+        hospital_service::update_hospital(&state, id, req).await?,
+    ))
+}
+
+pub async fn delete_hospital(
+    State(state): State<AppState>,
+    Path(id): Path<u64>,
+) -> Result<Json<bool>, AppError> {
+    Ok(Json(hospital_service::delete_hospital(&state, id).await?))
 }
