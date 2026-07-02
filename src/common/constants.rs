@@ -28,6 +28,19 @@ pub mod env {
     /// 外部 HTTP API 请求超时时间，单位：秒。
     pub const HTTP_TIMEOUT_SECONDS: &str = "HTTP_TIMEOUT_SECONDS";
     pub const DEFAULT_HTTP_TIMEOUT_SECONDS: &str = "10";
+
+    /// 腾讯云直播 API 凭证。
+    pub const TENCENT_LIVE_SECRET_ID: &str = "TENCENT_LIVE_SECRET_ID";
+    pub const TENCENT_LIVE_SECRET_KEY: &str = "TENCENT_LIVE_SECRET_KEY";
+
+    /// 腾讯云直播推流/播放 URL 配置。
+    pub const TENCENT_LIVE_APP_NAME: &str = "TENCENT_LIVE_APP_NAME";
+    pub const TENCENT_LIVE_PUSH_DOMAIN: &str = "TENCENT_LIVE_PUSH_DOMAIN";
+    pub const TENCENT_LIVE_PLAY_DOMAIN: &str = "TENCENT_LIVE_PLAY_DOMAIN";
+    pub const TENCENT_LIVE_PUSH_KEY: &str = "TENCENT_LIVE_PUSH_KEY";
+    pub const TENCENT_LIVE_PLAY_KEY: &str = "TENCENT_LIVE_PLAY_KEY";
+    pub const TENCENT_LIVE_DEFAULT_TTL_SECONDS: &str = "TENCENT_LIVE_DEFAULT_TTL_SECONDS";
+    pub const DEFAULT_TENCENT_LIVE_DEFAULT_TTL_SECONDS: &str = "86400";
 }
 
 pub mod cache {
@@ -188,4 +201,7 @@ pub mod route {
 
     pub const HOSPITALS: &str = "/hospitals";
     pub const HOSPITAL_BY_ID: &str = "/hospitals/:id";
+
+    pub const LIVE_URLS: &str = "/live/urls";
+    pub const LIVE_STREAM_STATE: &str = "/live/stream-state";
 }

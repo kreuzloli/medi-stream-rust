@@ -3,6 +3,7 @@ use crate::auth::handlers as auth_handlers;
 use crate::common::constants::route;
 use crate::hospital::handlers as hospital_handlers;
 use crate::state::AppState;
+use crate::tencent_cloud::handlers as tencent_cloud_handlers;
 use axum::routing::{delete, get, post};
 use axum::Router;
 use tower_http::cors::CorsLayer;
@@ -32,6 +33,14 @@ pub fn router(state: AppState) -> Router {
                 .delete(hospital_handlers::delete_hospital),
         )
         .route(route::AUTH_REGISTER, post(auth_handlers::register))
+        .route(
+            route::LIVE_URLS,
+            get(tencent_cloud_handlers::generate_live_urls),
+        )
+        .route(
+            route::LIVE_STREAM_STATE,
+            post(tencent_cloud_handlers::describe_live_stream_state),
+        )
         .route(route::ACCOUNT, get(account_handlers::get_account))
         .route(
             route::ACCOUNT_BIND_LOGIN,

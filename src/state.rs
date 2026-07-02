@@ -1,4 +1,6 @@
 use crate::common::{HttpClient, JwtKeys};
+use crate::tencent_cloud::tencent_live_model::LiveUrlConfig;
+use crate::tencent_cloud::tencent_live_signer::LiveCredential;
 use redis::aio::ConnectionManager;
 use sqlx::MySqlPool;
 
@@ -12,4 +14,8 @@ pub struct AppState {
     pub jwt: JwtKeys,
     // 统一 HTTP 客户端。
     pub http: HttpClient,
+    // 腾讯云直播凭证。未配置时只禁用 live 接口，不影响核心业务启动。
+    pub tencent_live_credential: Option<LiveCredential>,
+    // 腾讯云直播推流/播放 URL 配置。未配置时只禁用 URL 生成接口。
+    pub tencent_live_url_config: Option<LiveUrlConfig>,
 }

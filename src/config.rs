@@ -1,4 +1,6 @@
 use crate::common::constants::env as env_constants;
+use crate::tencent_cloud::tencent_live_model::LiveUrlConfig;
+use crate::tencent_cloud::tencent_live_signer::LiveCredential;
 use anyhow::{Context, Result};
 use std::env;
 
@@ -12,6 +14,8 @@ pub struct Settings {
     pub jwt_ttl_seconds: i64,
     pub mysql_max_connections: u32,
     pub http_timeout_seconds: u64,
+    pub tencent_live_credential: Option<LiveCredential>,
+    pub tencent_live_url_config: Option<LiveUrlConfig>,
 }
 
 impl Settings {
@@ -45,6 +49,75 @@ impl Settings {
                 .unwrap_or_else(|_| env_constants::DEFAULT_HTTP_TIMEOUT_SECONDS.to_string())
                 .parse()
                 .context("invalid HTTP_TIMEOUT_SECONDS")?,
+
+            tencent_live_credential: live_credential_from_env()?,
+            tencent_live_url_config: live_url_config_from_env()?,
         })
     }
+}
+
+fn live_credential_from_env() -> Result<Option<LiveCredential>> {
+    let secret_id = env::var(env_constants::TENCENT_LIVE_SECRET_ID).ok();
+    let secret_key = env::var(env_constants::TENCENT_LIVE_SECRET_KEY).ok();
+
+    match (secret_id, secret_key) {
+        (Some(secret_id), Some(secret_key))
+            if !secret_id.trim().is_empty() && !secret_key.trim().is_empty() =>
+        {
+            Ok(Some(LiveCredential {
+                secret_id,
+                secret_key,
+            }))
+        }
+        (None, None) => Ok(None),
+        _ => anyhow::bail!(
+            "TENCENT_LIVE_SECRET_ID and TENCENT_LIVE_SECRET_KEY must be configured together"
+        ),
+    }
+}
+
+fn live_url_config_from_env() -> Result<Option<LiveUrlConfig>> {
+    let app_name = optional_env(env_constants::TENCENT_LIVE_APP_NAME);
+    let push_domain = optional_env(env_constants::TENCENT_LIVE_PUSH_DOMAIN);
+    let play_domain = optional_env(env_constants::TENCENT_LIVE_PLAY_DOMAIN);
+    let push_key = optional_env(env_constants::TENCENT_LIVE_PUSH_KEY);
+    let play_key = optional_env(env_constants::TENCENT_LIVE_PLAY_KEY);
+
+    let configured_count = [
+        app_name.as_ref(),
+        push_domain.as_ref(),
+        play_domain.as_ref(),
+        push_key.as_ref(),
+        play_key.as_ref(),
+    ]
+    .into_iter()
+    .filter(|value| value.is_some())
+    .count();
+
+    if configured_count == 0 {
+        return Ok(None);
+    }
+    if configured_count != 5 {
+        anyhow::bail!(
+            "TENCENT_LIVE_APP_NAME, TENCENT_LIVE_PUSH_DOMAIN, TENCENT_LIVE_PLAY_DOMAIN, TENCENT_LIVE_PUSH_KEY and TENCENT_LIVE_PLAY_KEY must be configured together"
+        );
+    }
+
+    let default_ttl_seconds = env::var(env_constants::TENCENT_LIVE_DEFAULT_TTL_SECONDS)
+        .unwrap_or_else(|_| env_constants::DEFAULT_TENCENT_LIVE_DEFAULT_TTL_SECONDS.to_string())
+        .parse()
+        .context("invalid TENCENT_LIVE_DEFAULT_TTL_SECONDS")?;
+
+    Ok(Some(LiveUrlConfig {
+        app_name: app_name.expect("checked configured_count"),
+        push_domain: push_domain.expect("checked configured_count"),
+        play_domain: play_domain.expect("checked configured_count"),
+        push_key: push_key.expect("checked configured_count"),
+        play_key: play_key.expect("checked configured_count"),
+        default_ttl_seconds,
+    }))
+}
+
+fn optional_env(name: &str) -> Option<String> {
+    env::var(name).ok().filter(|value| !value.trim().is_empty())
 }

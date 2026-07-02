@@ -48,6 +48,8 @@ async fn main() -> anyhow::Result<()> {
         redis,
         jwt: JwtKeys::from_settings(&settings)?,
         http,
+        tencent_live_credential: settings.tencent_live_credential,
+        tencent_live_url_config: settings.tencent_live_url_config,
     };
 
     // Axum 的 Router 类似 Spring Controller 的路由注册表。
