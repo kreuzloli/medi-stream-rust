@@ -114,6 +114,24 @@ pub mod status {
 
     /// 默认版本号。
     pub const DEFAULT_VERSION: i32 = 0;
+
+    /// 判断值是否为通用启用/禁用状态。
+    pub fn is_enabled_or_disabled(value: i32) -> bool {
+        matches!(value, STATUS_DISABLED | STATUS_ENABLED)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn is_enabled_or_disabled_accepts_only_zero_and_one() {
+            assert!(is_enabled_or_disabled(STATUS_DISABLED));
+            assert!(is_enabled_or_disabled(STATUS_ENABLED));
+            assert!(!is_enabled_or_disabled(-1));
+            assert!(!is_enabled_or_disabled(2));
+        }
+    }
 }
 
 pub mod page {

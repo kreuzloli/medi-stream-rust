@@ -7,8 +7,8 @@ use crate::common::cache;
 use crate::common::constants::account::{
     IDENTITY_MEDICAL_WORKER, IDENTITY_NON_MEDICAL_WORKER, MAX_LOGIN_ACCOUNT_COUNT,
 };
-use crate::common::constants::status::{STATUS_DISABLED, STATUS_ENABLED};
 use crate::common::jwt::Claims;
+use crate::common::validation::validate_enabled_or_disabled;
 use crate::error::AppError;
 use crate::state::AppState;
 use argon2::password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
@@ -56,7 +56,7 @@ pub fn validate_create_login_account_req(req: &CreateLoginAccountReq) -> Result<
     {
         return Err(AppError::BadRequest("邮箱登录必须填写密码".to_string()));
     }
-    validate_status(req.status)?;
+    validate_enabled_or_disabled(req.status, "状态只能是0或1")?;
     Ok(())
 }
 
@@ -384,23 +384,13 @@ fn validate_profile_fields(
     ) {
         return Err(AppError::BadRequest("身份类型不正确".to_string()));
     }
-    validate_status(status)
+    validate_enabled_or_disabled(status, "状态只能是0或1")
 }
 
 /// 校验登录标识不能为空。
 fn validate_login_identifier(login_identifier: &str) -> Result<(), AppError> {
     if login_identifier.trim().is_empty() {
         return Err(AppError::BadRequest("登录标识不能为空".to_string()));
-    }
-    Ok(())
-}
-
-/// 校验通用启用/禁用状态值。
-fn validate_status(status: Option<i32>) -> Result<(), AppError> {
-    if let Some(status) = status {
-        if !matches!(status, STATUS_DISABLED | STATUS_ENABLED) {
-            return Err(AppError::BadRequest("状态只能是0或1".to_string()));
-        }
     }
     Ok(())
 }

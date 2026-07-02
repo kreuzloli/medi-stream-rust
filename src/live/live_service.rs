@@ -1,4 +1,5 @@
 use crate::common::constants::status::{STATUS_DISABLED, STATUS_ENABLED};
+use crate::common::validation::validate_enabled_or_disabled;
 use crate::common::Page;
 use crate::error::AppError;
 use crate::live::live_model::{
@@ -53,8 +54,8 @@ pub fn validate_save_live_room_stream_req(req: &SaveLiveRoomStreamReq) -> Result
     if req.stream_name.trim().is_empty() {
         return Err(AppError::BadRequest("streamName不能为空".to_string()));
     }
-    validate_binary_flag(req.is_default, "默认流标记只能是0或1")?;
-    validate_enabled_status(req.status)
+    validate_enabled_or_disabled(req.is_default, "默认流标记只能是0或1")?;
+    validate_enabled_or_disabled(req.status, "状态只能是0或1")
 }
 
 /// 把直播房间和该房间下的多路流组装成详情响应。
@@ -261,26 +262,6 @@ fn validate_room_status(status: Option<i32>) -> Result<(), AppError> {
             STATUS_DISABLED | STATUS_ENABLED | ROOM_STATUS_BANNED
         ) {
             return Err(AppError::BadRequest("房间状态只能是0、1或2".to_string()));
-        }
-    }
-    Ok(())
-}
-
-/// 校验直播流启用/停用状态。
-fn validate_enabled_status(status: Option<i32>) -> Result<(), AppError> {
-    if let Some(status) = status {
-        if !matches!(status, STATUS_DISABLED | STATUS_ENABLED) {
-            return Err(AppError::BadRequest("状态只能是0或1".to_string()));
-        }
-    }
-    Ok(())
-}
-
-/// 校验 0/1 标记字段。
-fn validate_binary_flag(value: Option<i32>, message: &str) -> Result<(), AppError> {
-    if let Some(value) = value {
-        if !matches!(value, 0 | 1) {
-            return Err(AppError::BadRequest(message.to_string()));
         }
     }
     Ok(())

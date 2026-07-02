@@ -1,4 +1,4 @@
-use crate::common::constants::status::{STATUS_DISABLED, STATUS_ENABLED};
+use crate::common::validation::validate_enabled_or_disabled;
 use crate::common::Page;
 use crate::error::AppError;
 use crate::hospital::hospital_model::{Hospital, HospitalPageQuery, SaveHospitalReq};
@@ -10,7 +10,7 @@ pub fn validate_save_hospital_req(req: &SaveHospitalReq) -> Result<(), AppError>
     if req.hospital_name.trim().is_empty() {
         return Err(AppError::BadRequest("医院名称不能为空".to_string()));
     }
-    validate_status(req.status)
+    validate_enabled_or_disabled(req.status, "状态只能是0或1")
 }
 
 /// 创建业务数据，并返回创建后的记录。
@@ -73,14 +73,4 @@ pub async fn page_hospitals(
     query: HospitalPageQuery,
 ) -> Result<Page<Hospital>, AppError> {
     hospital_repository::page_hospitals(&state.db, query).await
-}
-
-/// 校验医院启用/禁用状态值。
-fn validate_status(status: Option<i32>) -> Result<(), AppError> {
-    if let Some(status) = status {
-        if !matches!(status, STATUS_DISABLED | STATUS_ENABLED) {
-            return Err(AppError::BadRequest("状态只能是0或1".to_string()));
-        }
-    }
-    Ok(())
 }
