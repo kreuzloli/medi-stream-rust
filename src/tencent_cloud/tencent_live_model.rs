@@ -25,6 +25,7 @@ pub struct LiveUrlsResp {
     pub stream_name: String,
     pub expire_at_epoch_seconds: i64,
     pub tx_time_hex: String,
+    pub push_webrtc: String,
     pub push_rtmp: String,
     pub play_webrtc: String,
     pub play_rtmp: String,

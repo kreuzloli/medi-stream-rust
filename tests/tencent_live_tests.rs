@@ -4,7 +4,7 @@ use medi_stream_rust::tencent_cloud::tencent_live_signer::{
     build_live_authorization, LiveCredential,
 };
 use medi_stream_rust::tencent_cloud::tencent_live_url_generator::{
-    build_live_urls, build_play_url, build_push_url, PlayProtocol,
+    build_live_urls, build_play_url, build_push_url, build_push_webrtc_url, PlayProtocol,
 };
 
 /// 验证直播业务模型的核心行为。
@@ -66,6 +66,16 @@ fn live_url_generator_builds_signed_push_and_play_urls() {
     assert_eq!(
         urls.push_rtmp,
         build_push_url(
+            "push.genwhole.com",
+            "medi-stream",
+            "stream001",
+            "push-secret",
+            "6553F13C",
+        )
+    );
+    assert_eq!(
+        urls.push_webrtc,
+        build_push_webrtc_url(
             "push.genwhole.com",
             "medi-stream",
             "stream001",
