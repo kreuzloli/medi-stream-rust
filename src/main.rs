@@ -55,7 +55,7 @@ async fn main() -> anyhow::Result<()> {
         wechat_app_id: settings.wechat_app_id,
         wechat_app_secret: settings.wechat_app_secret,
         wechat_encoding_aes_key: settings.wechat_encoding_aes_key,
-        wechat_token_expire_seconds: settings.wechat_token_expire_seconds,
+        wechat_access_token_expire_seconds: settings.wechat_access_token_expire_seconds,
     };
 
     // Axum 的 Router 类似 Spring Controller 的路由注册表。

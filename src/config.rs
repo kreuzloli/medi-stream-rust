@@ -25,7 +25,7 @@ pub struct Settings {
     pub wechat_app_id: Option<String>,
     pub wechat_app_secret: Option<String>,
     pub wechat_encoding_aes_key: Option<String>,
-    pub wechat_token_expire_seconds: Option<i64>,
+    pub wechat_access_token_expire_seconds: Option<i64>,
 }
 
 impl Settings {
@@ -68,10 +68,10 @@ impl Settings {
             wechat_app_id: optional_env(env_constants::WECHAT_APP_ID),
             wechat_app_secret: optional_env(env_constants::WECHAT_APP_SECRET),
             wechat_encoding_aes_key: optional_env(env_constants::WECHAT_ENCODING_AES_KEY),
-            wechat_token_expire_seconds: Some(
-                optional_env(env_constants::WECHAT_TOKEN_EXPIRE_SECONDS)
+            wechat_access_token_expire_seconds: Some(
+                optional_env(env_constants::WECHAT_ACCESS_TOKEN_EXPIRE_SECONDS)
                     .and_then(|s| s.parse().ok())
-                    .unwrap_or(env_constants::DEFAULT_WECHAT_TOKEN_EXPIRE_SECONDS),
+                    .unwrap_or(env_constants::DEFAULT_WECHAT_ACCESS_TOKEN_EXPIRE_SECONDS),
             ),
         })
     }

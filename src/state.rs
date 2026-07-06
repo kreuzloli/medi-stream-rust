@@ -24,5 +24,5 @@ pub struct AppState {
     pub wechat_app_id: Option<String>,
     pub wechat_app_secret: Option<String>,
     pub wechat_encoding_aes_key: Option<String>,
-    pub wechat_token_expire_seconds: Option<i64>,
+    pub wechat_access_token_expire_seconds: Option<i64>,
 }
