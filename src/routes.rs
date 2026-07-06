@@ -4,6 +4,7 @@ use crate::common::constants::route;
 use crate::hospital::handlers as hospital_handlers;
 use crate::state::AppState;
 use crate::tencent_cloud::handlers as tencent_cloud_handlers;
+use crate::wechat::handlers as wechat_handlers;
 use axum::routing::{delete, get, post};
 use axum::Router;
 use tower_http::cors::CorsLayer;
@@ -50,6 +51,10 @@ pub fn router(state: AppState) -> Router {
         .route(
             route::ACCOUNT_UNBIND,
             delete(account_handlers::unbind_account),
+        )
+        .route(
+            route::WECHAT_CALLBACK,
+            get(wechat_handlers::check_signature),
         )
         .layer(CorsLayer::permissive())
         .with_state(state)
