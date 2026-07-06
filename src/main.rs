@@ -51,6 +51,11 @@ async fn main() -> anyhow::Result<()> {
         http,
         tencent_live_credential: settings.tencent_live_credential,
         tencent_live_url_config: settings.tencent_live_url_config,
+        wechat_token: settings.wechat_token,
+        wechat_app_id: settings.wechat_app_id,
+        wechat_app_secret: settings.wechat_app_secret,
+        wechat_encoding_aes_key: settings.wechat_encoding_aes_key,
+        wechat_token_expire_seconds: settings.wechat_token_expire_seconds,
     };
 
     // Axum 的 Router 类似 Spring Controller 的路由注册表。

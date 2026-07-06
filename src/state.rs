@@ -18,4 +18,11 @@ pub struct AppState {
     pub tencent_live_credential: Option<LiveCredential>,
     // 腾讯云直播推流/播放 URL 配置。未配置时只禁用 URL 生成接口。
     pub tencent_live_url_config: Option<LiveUrlConfig>,
+
+    /// 微信服务器推送消息校验 Token。
+    pub wechat_token: Option<String>,
+    pub wechat_app_id: Option<String>,
+    pub wechat_app_secret: Option<String>,
+    pub wechat_encoding_aes_key: Option<String>,
+    pub wechat_token_expire_seconds: Option<i64>,
 }

@@ -41,6 +41,14 @@ pub mod env {
     pub const TENCENT_LIVE_PLAY_KEY: &str = "TENCENT_LIVE_PLAY_KEY";
     pub const TENCENT_LIVE_DEFAULT_TTL_SECONDS: &str = "TENCENT_LIVE_DEFAULT_TTL_SECONDS";
     pub const DEFAULT_TENCENT_LIVE_DEFAULT_TTL_SECONDS: &str = "86400";
+
+    /// 微信服务号配置。
+    pub const WECHAT_APP_ID: &str = "WECHAT_APP_ID";
+    pub const WECHAT_APP_SECRET: &str = "WECHAT_APP_SECRET";
+    pub const WECHAT_TOKEN_EXPIRE_SECONDS: &str = "WECHAT_TOKEN_EXPIRE_SECONDS";
+    pub const DEFAULT_WECHAT_TOKEN_EXPIRE_SECONDS: i64 = 7200;
+    pub const WECHAT_ENCODING_AES_KEY: &str = "WECHAT_ENCODING_AES_KEY";
+    pub const WECHAT_TOKEN: &str = "WECHAT_TOKEN";
 }
 
 pub mod cache {
@@ -222,4 +230,7 @@ pub mod route {
 
     pub const LIVE_URLS: &str = "/live/urls";
     pub const LIVE_STREAM_STATE: &str = "/live/stream-state";
+
+    /// 微信服务器推送消息回调地址。
+    pub const WECHAT_CALLBACK: &str = "/wechat/callback";
 }

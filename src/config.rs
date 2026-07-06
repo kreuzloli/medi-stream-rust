@@ -16,6 +16,16 @@ pub struct Settings {
     pub http_timeout_seconds: u64,
     pub tencent_live_credential: Option<LiveCredential>,
     pub tencent_live_url_config: Option<LiveUrlConfig>,
+
+    /// 微信服务器推送消息校验 Token。
+    ///
+    /// 不强制启动时必须配置，避免本地开发时因为没接微信导致整个服务起不来。
+    /// 真正请求 /wechat/callback 时，如果没配置，会返回 BadRequest。
+    pub wechat_token: Option<String>,
+    pub wechat_app_id: Option<String>,
+    pub wechat_app_secret: Option<String>,
+    pub wechat_encoding_aes_key: Option<String>,
+    pub wechat_token_expire_seconds: Option<i64>,
 }
 
 impl Settings {
@@ -53,6 +63,16 @@ impl Settings {
 
             tencent_live_credential: live_credential_from_env()?,
             tencent_live_url_config: live_url_config_from_env()?,
+
+            wechat_token: optional_env(env_constants::WECHAT_TOKEN),
+            wechat_app_id: optional_env(env_constants::WECHAT_APP_ID),
+            wechat_app_secret: optional_env(env_constants::WECHAT_APP_SECRET),
+            wechat_encoding_aes_key: optional_env(env_constants::WECHAT_ENCODING_AES_KEY),
+            wechat_token_expire_seconds: Some(
+                optional_env(env_constants::WECHAT_TOKEN_EXPIRE_SECONDS)
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(env_constants::DEFAULT_WECHAT_TOKEN_EXPIRE_SECONDS),
+            ),
         })
     }
 }
