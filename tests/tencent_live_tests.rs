@@ -4,7 +4,7 @@ use medi_stream_rust::tencent_cloud::tencent_live_signer::{
     build_live_authorization, LiveCredential,
 };
 use medi_stream_rust::tencent_cloud::tencent_live_url_generator::{
-    build_live_urls, build_play_url, build_push_url, build_push_webrtc_url, PlayProtocol,
+    build_live_urls, build_play_url, build_push_url, LiveProtocol,
 };
 
 /// 验证直播业务模型的核心行为。
@@ -66,6 +66,7 @@ fn live_url_generator_builds_signed_push_and_play_urls() {
     assert_eq!(
         urls.push_rtmp,
         build_push_url(
+            LiveProtocol::Rtmp,
             "push.genwhole.com",
             "medi-stream",
             "stream001",
@@ -75,7 +76,8 @@ fn live_url_generator_builds_signed_push_and_play_urls() {
     );
     assert_eq!(
         urls.push_webrtc,
-        build_push_webrtc_url(
+        build_push_url(
+            LiveProtocol::Webrtc,
             "push.genwhole.com",
             "medi-stream",
             "stream001",
@@ -86,7 +88,7 @@ fn live_url_generator_builds_signed_push_and_play_urls() {
     assert_eq!(
         urls.play_webrtc,
         build_play_url(
-            PlayProtocol::Webrtc,
+            LiveProtocol::Webrtc,
             "live.genwhole.com",
             "medi-stream",
             "stream001",
@@ -96,7 +98,7 @@ fn live_url_generator_builds_signed_push_and_play_urls() {
         )
     );
     let expected_flv_transcoded = build_play_url(
-        PlayProtocol::HttpFlv,
+        LiveProtocol::HttpFlv,
         "live.genwhole.com",
         "medi-stream",
         "stream001",
@@ -105,7 +107,7 @@ fn live_url_generator_builds_signed_push_and_play_urls() {
         "6553F13C",
     );
     let expected_hls_transcoded = build_play_url(
-        PlayProtocol::Hls,
+        LiveProtocol::Hls,
         "live.genwhole.com",
         "medi-stream",
         "stream001",

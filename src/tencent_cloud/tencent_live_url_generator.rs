@@ -2,29 +2,29 @@ use crate::error::AppError;
 use crate::tencent_cloud::tencent_live_model::{LiveUrlConfig, LiveUrlsResp};
 
 #[derive(Debug, Clone, Copy)]
-pub enum PlayProtocol {
+pub enum LiveProtocol {
     Webrtc,
     Rtmp,
     HttpFlv,
     Hls,
 }
 
-impl PlayProtocol {
+impl LiveProtocol {
     /// 返回当前播放协议对应的 URL 前缀。
     fn prefix(self) -> &'static str {
         match self {
-            PlayProtocol::Webrtc => "webrtc://",
-            PlayProtocol::Rtmp => "rtmp://",
-            PlayProtocol::HttpFlv | PlayProtocol::Hls => "https://",
+            LiveProtocol::Webrtc => "webrtc://",
+            LiveProtocol::Rtmp => "rtmp://",
+            LiveProtocol::HttpFlv | LiveProtocol::Hls => "https://",
         }
     }
 
     /// 返回当前播放协议对应的文件后缀。
     fn suffix(self) -> &'static str {
         match self {
-            PlayProtocol::Webrtc | PlayProtocol::Rtmp => "",
-            PlayProtocol::HttpFlv => ".flv",
-            PlayProtocol::Hls => ".m3u8",
+            LiveProtocol::Webrtc | LiveProtocol::Rtmp => "",
+            LiveProtocol::HttpFlv => ".flv",
+            LiveProtocol::Hls => ".m3u8",
         }
     }
 }
@@ -49,7 +49,7 @@ pub fn build_live_urls(
         .filter(|template| !template.is_empty());
 
     let push_rtmp = build_push_url(
-        PlayProtocol::Rtmp,
+        LiveProtocol::Rtmp,
         &config.push_domain,
         &config.app_name,
         stream_name,
@@ -57,7 +57,7 @@ pub fn build_live_urls(
         &tx_time_hex,
     );
     let push_webrtc = build_push_url(
-        PlayProtocol::Webrtc,
+        LiveProtocol::Webrtc,
         &config.push_domain,
         &config.app_name,
         stream_name,
@@ -65,7 +65,7 @@ pub fn build_live_urls(
         &tx_time_hex,
     );
     let play_webrtc = build_play_url(
-        PlayProtocol::Webrtc,
+        LiveProtocol::Webrtc,
         &config.play_domain,
         &config.app_name,
         stream_name,
@@ -74,7 +74,7 @@ pub fn build_live_urls(
         &tx_time_hex,
     );
     let play_rtmp = build_play_url(
-        PlayProtocol::Rtmp,
+        LiveProtocol::Rtmp,
         &config.play_domain,
         &config.app_name,
         stream_name,
@@ -83,7 +83,7 @@ pub fn build_live_urls(
         &tx_time_hex,
     );
     let play_flv = build_play_url(
-        PlayProtocol::HttpFlv,
+        LiveProtocol::HttpFlv,
         &config.play_domain,
         &config.app_name,
         stream_name,
@@ -92,7 +92,7 @@ pub fn build_live_urls(
         &tx_time_hex,
     );
     let play_hls = build_play_url(
-        PlayProtocol::Hls,
+        LiveProtocol::Hls,
         &config.play_domain,
         &config.app_name,
         stream_name,
@@ -102,7 +102,7 @@ pub fn build_live_urls(
     );
     let play_flv_transcoded = transcode_template.map(|template| {
         build_play_url(
-            PlayProtocol::HttpFlv,
+            LiveProtocol::HttpFlv,
             &config.play_domain,
             &config.app_name,
             stream_name,
@@ -113,7 +113,7 @@ pub fn build_live_urls(
     });
     let play_hls_transcoded = transcode_template.map(|template| {
         build_play_url(
-            PlayProtocol::Hls,
+            LiveProtocol::Hls,
             &config.play_domain,
             &config.app_name,
             stream_name,
@@ -141,7 +141,7 @@ pub fn build_live_urls(
 
 /// 生成带 txSecret 和 txTime 的 RTMP 推流 URL。
 pub fn build_push_url(
-    protocol: PlayProtocol,
+    protocol: LiveProtocol,
     push_domain: &str,
     app_name: &str,
     stream_name: &str,
@@ -163,7 +163,7 @@ pub fn build_push_url(
 
 /// 生成指定协议的播放 URL，支持源流和转码流。
 pub fn build_play_url(
-    protocol: PlayProtocol,
+    protocol: LiveProtocol,
     play_domain: &str,
     app_name: &str,
     stream_name: &str,
