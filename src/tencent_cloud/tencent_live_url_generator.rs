@@ -49,13 +49,15 @@ pub fn build_live_urls(
         .filter(|template| !template.is_empty());
 
     let push_rtmp = build_push_url(
+        PlayProtocol::Rtmp,
         &config.push_domain,
         &config.app_name,
         stream_name,
         &config.push_key,
         &tx_time_hex,
     );
-    let push_webrtc = build_push_webrtc_url(
+    let push_webrtc = build_push_url(
+        PlayProtocol::Webrtc,
         &config.push_domain,
         &config.app_name,
         stream_name,
@@ -139,6 +141,7 @@ pub fn build_live_urls(
 
 /// 生成带 txSecret 和 txTime 的 RTMP 推流 URL。
 pub fn build_push_url(
+    protocol: PlayProtocol,
     push_domain: &str,
     app_name: &str,
     stream_name: &str,
@@ -147,26 +150,8 @@ pub fn build_push_url(
 ) -> String {
     // 腾讯云推流防盗链签名要求按 pushKey + streamName + txTime 拼 MD5。
     let base = format!(
-        "rtmp://{}/{}/{}",
-        trim_slash(push_domain),
-        trim_slash(app_name),
-        stream_name
-    );
-    let tx_secret = md5_hex(&format!("{push_key}{stream_name}{tx_time_hex}"));
-
-    format!("{base}?txSecret={tx_secret}&txTime={tx_time_hex}")
-}
-
-/// 生成带 txSecret 和 txTime 的 WebRTC 推流 URL。
-pub fn build_push_webrtc_url(
-    push_domain: &str,
-    app_name: &str,
-    stream_name: &str,
-    push_key: &str,
-    tx_time_hex: &str,
-) -> String {
-    let base = format!(
-        "webrtc://{}/{}/{}",
+        "{}://{}/{}/{}",
+        protocol.prefix(),
         trim_slash(push_domain),
         trim_slash(app_name),
         stream_name
