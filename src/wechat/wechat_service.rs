@@ -22,7 +22,10 @@ pub async fn get_wechat_access_token(state: &mut AppState) -> Result<String, App
         .wechat_app_id
         .clone()
         .ok_or_else(|| AppError::Internal("WECHAT_APP_ID 未配置".to_string()))?;
-
+    let app_secret = state
+        .wechat_app_secret
+        .clone()
+        .ok_or_else(|| AppError::Internal("WECHAT_APP_SECRET 未配置".to_string()))?;
     let expire_seconds = state
         .wechat_access_token_expire_seconds
         .unwrap_or(7200)
@@ -32,7 +35,7 @@ pub async fn get_wechat_access_token(state: &mut AppState) -> Result<String, App
     if let Some(cached_token) = cache::get_wechat_access_token(state, &app_id).await? {
         return Ok(cached_token);
     }
-    let resp = fetch_wechat_access_token(state, &app_id).await?;
+    let resp = fetch_wechat_access_token(state, &app_id, &app_secret).await?;
     let access_token = parse_wechat_access_token(resp)?;
     cache::set_wechat_access_token(state, &app_id, &access_token, expire_seconds).await?;
     Ok(access_token)
@@ -42,13 +45,9 @@ pub async fn get_wechat_access_token(state: &mut AppState) -> Result<String, App
 pub async fn fetch_wechat_access_token(
     state: &AppState,
     app_id: &str,
+    app_secret: &str,
 ) -> Result<WechatAccessTokenResp, AppError> {
-    let app_secret = state
-        .wechat_app_secret
-        .clone()
-        .ok_or_else(|| AppError::Internal("WECHAT_APP_SECRET 未配置".to_string()))?;
     tracing::info!(app_id = %app_id, "fetch_wechat_access_token request started");
-
     let url = format!(
         "{}{}?grant_type={}&appid={}&secret={}",
         WECHAT_API_BASE_URL, WECHAT_ACCESS_TOKEN_PATH, WECHAT_CLIENT_CREDENTIAL, app_id, app_secret
