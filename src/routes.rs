@@ -56,6 +56,10 @@ pub fn router(state: AppState) -> Router {
             route::WECHAT_CALLBACK,
             get(wechat_handlers::check_signature),
         )
+                .route(
+            route::WECHAT_RELOAD_ACCESS_TOKEN,
+            get(wechat_handlers::reload_access_token),
+        )
         .layer(CorsLayer::permissive())
         .with_state(state)
 }

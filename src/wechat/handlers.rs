@@ -2,7 +2,10 @@ use crate::error::AppError;
 use crate::state::AppState;
 use crate::wechat::wechat_model::WechatCheckSignatureQuery;
 use crate::wechat::wechat_service;
-use axum::extract::{Query, State};
+use axum::{
+    extract::{Query, State},
+    Json,
+};
 
 /// 微信服务器配置校验接口。
 ///
@@ -45,4 +48,14 @@ pub async fn check_signature(
     // 微信要求成功后原样返回 echostr。
     // 注意这里不是 Json，而是纯文本字符串。
     Ok(query.echostr)
+}
+
+pub async fn reload_access_token(
+    State(mut state): State<AppState>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let access_token = wechat_service::get_wechat_access_token(&mut state).await?;
+    Ok(Json(serde_json::json!({
+        "ok": true,
+        "access_token_length": access_token.len()
+    })))
 }

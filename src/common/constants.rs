@@ -249,4 +249,7 @@ pub mod route {
 
     /// 微信服务器推送消息回调地址。
     pub const WECHAT_CALLBACK: &str = "/wechat/callback";
+
+        /// 微信服务器推送消息回调地址。
+    pub const WECHAT_RELOAD_ACCESS_TOKEN: &str = "/wechat/reload-access-token";
 }
