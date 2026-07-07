@@ -36,7 +36,29 @@ pub async fn get_wechat_access_token(state: &mut AppState) -> Result<String, App
         return Ok(cached_token);
     }
     let resp = fetch_wechat_access_token(state, &app_id, &app_secret).await?;
-    let access_token = parse_wechat_access_token(resp)?;
+    // let access_token = parse_wechat_access_token(resp)?;
+    if let Some(errcode) = resp.errcode {
+        if errcode != WECHAT_SUCCESS_ERRCODE {
+            return Err(AppError::ExternalApi {
+                service: WECHAT_SERVICE_NAME.to_string(),
+                status: 200,
+                body: format!(
+                    "wechat errcode={}, errmsg={}",
+                    errcode,
+                    resp.errmsg
+                        .unwrap_or_else(|| "unknown wechat error".to_string())
+                ),
+            });
+        }
+    }
+    let access_token = resp
+        .access_token
+        .filter(|token| !token.trim().is_empty())
+        .ok_or_else(|| AppError::ExternalApi {
+            service: WECHAT_SERVICE_NAME.to_string(),
+            status: 200,
+            body: "wechat response missing access_token".to_string(),
+        })?;
     cache::set_wechat_access_token(state, &app_id, &access_token, expire_seconds).await?;
     Ok(access_token)
 }
@@ -128,28 +150,4 @@ fn build_sha1_signature(parts: &[&str]) -> String {
 
     // 转成小写 16 进制字符串。
     format!("{:x}", hasher.finalize())
-}
-
-fn parse_wechat_access_token(resp: WechatAccessTokenResp) -> Result<String, AppError> {
-    if let Some(errcode) = resp.errcode {
-        if errcode != WECHAT_SUCCESS_ERRCODE {
-            return Err(AppError::ExternalApi {
-                service: WECHAT_SERVICE_NAME.to_string(),
-                status: 200,
-                body: format!(
-                    "wechat errcode={}, errmsg={}",
-                    errcode,
-                    resp.errmsg
-                        .unwrap_or_else(|| "unknown wechat error".to_string())
-                ),
-            });
-        }
-    }
-    resp.access_token
-        .filter(|token| !token.trim().is_empty())
-        .ok_or_else(|| AppError::ExternalApi {
-            service: WECHAT_SERVICE_NAME.to_string(),
-            status: 200,
-            body: "wechat response missing access_token".to_string(),
-        })
 }
