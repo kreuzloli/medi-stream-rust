@@ -1,7 +1,7 @@
 use crate::account::account_model::{AccountDetail, LoginType};
 use crate::common::constants::cache::{
     ACCOUNT_CACHE_SECONDS, ACCOUNT_DETAIL_CACHE_PREFIX, LOGIN_VERIFICATION_CODE_PREFIX,
-    TOKEN_CACHE_PREFIX,
+    TOKEN_CACHE_PREFIX, WECHAT_ACCESS_TOKEN_PREFIX,
 };
 use crate::error::AppError;
 use crate::state::AppState;
@@ -104,4 +104,49 @@ fn login_verification_code_key(login_type: LoginType, login_identifier: &str) ->
         login_type.as_str(),
         login_identifier.trim()
     )
+}
+
+/// 从 Redis 读取WECHAT_ACCESS_TOKEN缓存；缓存不存在或不可解析时返回 None。
+pub async fn get_wechat_access_token(state: &mut AppState) -> Result<Option<String>, AppError> {
+    let app_id = state
+        .wechat_app_id
+        .as_deref()
+        .ok_or_else(|| AppError::Internal("WECHAT_APP_ID 未配置".to_string()))?;
+    if let Some(redis) = state.redis.as_mut() {
+        let cached: Option<String> = redis.get(wechat_access_token_cache_key(app_id)).await?;
+        if let Some(cached) = cached {
+            return Ok(Some(cached));
+        }
+    }
+    Ok(None)
+}
+
+/// 写入 Redis WECHAT_ACCESS_TOKEN缓存
+pub async fn set_wechat_access_token(
+    state: &mut AppState,
+    access_token: &str,
+) -> Result<(), AppError> {
+    let app_id = state
+        .wechat_app_id
+        .as_deref()
+        .ok_or_else(|| AppError::Internal("WECHAT_APP_ID 未配置".to_string()))?;
+    let expire_seconds = state
+        .wechat_access_token_expire_seconds
+        .unwrap_or(7200)
+        .saturating_sub(100)
+        .max(60) as u64;
+    if let Some(redis) = state.redis.as_mut() {
+        let _: () = redis
+            .set_ex(
+                wechat_access_token_cache_key(app_id),
+                access_token,
+                expire_seconds,
+            )
+            .await?;
+    }
+    Ok(())
+}
+
+fn wechat_access_token_cache_key(app_id: &str) -> String {
+    format!("{WECHAT_ACCESS_TOKEN_PREFIX}{app_id}")
 }

@@ -1,17 +1,44 @@
+use crate::common::cache;
 use crate::common::constants::wechat::{
     WECHAT_ACCESS_TOKEN_PATH, WECHAT_API_BASE_URL, WECHAT_CLIENT_CREDENTIAL, WECHAT_SERVICE_NAME,
+    WECHAT_SUCCESS_ERRCODE,
 };
 use crate::error::AppError;
 use crate::state::AppState;
 use crate::wechat::wechat_model::WechatAccessTokenResp;
 use sha1::{Digest, Sha1};
 
+/// 给业务层使用：获取微信 access_token。
+///
+/// 逻辑：
+/// 1. 优先从 Redis 读取。
+/// 2. Redis 没有，再请求微信。
+/// 3. 请求成功后写入 Redis。
+///
+/// 注意：
+/// 这个方法是后台内部用的，不要暴露成 API。
+pub async fn get_wechat_access_token(state: &mut AppState) -> Result<String, AppError> {
+    if let Some(cached_token) = cache::get_wechat_access_token(state).await? {
+        return Ok(cached_token);
+    }
+    let resp = fetch_wechat_access_token(state).await?;
+    let access_token = parse_wechat_access_token(resp)?;
+    cache::set_wechat_access_token(state, &access_token).await?;
+    Ok(access_token)
+}
+
 /// 调用外部服务并返回解析后的响应。
 pub async fn fetch_wechat_access_token(
     state: &AppState,
-    app_id: &str,
-    app_secret: &str,
 ) -> Result<WechatAccessTokenResp, AppError> {
+    let app_id = state
+        .wechat_app_id
+        .as_deref()
+        .ok_or_else(|| AppError::Internal("WECHAT_APP_ID 未配置".to_string()))?;
+    let app_secret = state
+        .wechat_app_secret
+        .clone()
+        .ok_or_else(|| AppError::Internal("WECHAT_APP_SECRET 未配置".to_string()))?;
     tracing::info!(app_id = %app_id, "fetch_wechat_access_token request started");
 
     let url = format!(
@@ -94,4 +121,28 @@ fn build_sha1_signature(parts: &[&str]) -> String {
 
     // 转成小写 16 进制字符串。
     format!("{:x}", hasher.finalize())
+}
+
+fn parse_wechat_access_token(resp: WechatAccessTokenResp) -> Result<String, AppError> {
+    if let Some(errcode) = resp.errcode {
+        if errcode != WECHAT_SUCCESS_ERRCODE {
+            return Err(AppError::ExternalApi {
+                service: WECHAT_SERVICE_NAME.to_string(),
+                status: 200,
+                body: format!(
+                    "wechat errcode={}, errmsg={}",
+                    errcode,
+                    resp.errmsg
+                        .unwrap_or_else(|| "unknown wechat error".to_string())
+                ),
+            });
+        }
+    }
+    resp.access_token
+        .filter(|token| !token.trim().is_empty())
+        .ok_or_else(|| AppError::ExternalApi {
+            service: WECHAT_SERVICE_NAME.to_string(),
+            status: 200,
+            body: "wechat response missing access_token".to_string(),
+        })
 }

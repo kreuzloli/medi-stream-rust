@@ -72,6 +72,22 @@ pub mod cache {
 
     /// 账号相关缓存时间，单位：秒。
     pub const ACCOUNT_CACHE_SECONDS: u64 = 10 * 60;
+
+    /// 微信 access_token 缓存 key 前缀。
+
+    ///
+
+    /// 完整 key 示例：
+
+    /// wechat_access_token:wx123456
+
+    pub const WECHAT_ACCESS_TOKEN_PREFIX: &str = "wechat_access_token:";
+
+    /// 微信 access_token 缓存时间，单位：秒。
+    ///
+    /// 微信默认 expires_in 是 7200 秒。
+    /// 这里少缓存一点，避免临界时间 token 已经过期。
+    pub const WECHAT_ACCESS_TOKEN_CACHE_SECONDS: u64 = 7100;
 }
 
 pub mod auth {
