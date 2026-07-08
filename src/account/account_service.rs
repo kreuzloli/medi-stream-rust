@@ -22,7 +22,7 @@ pub fn validate_create_account_req(req: &CreateAccountReq) -> Result<(), AppErro
         &req.real_name,
         req.hospital_id,
         req.dept_id,
-        &req.identity_type,
+        req.identity_type.as_deref(),
         req.status,
     )?;
     let logins = account_login_reqs(req)?;
@@ -39,7 +39,7 @@ pub fn validate_update_user_profile_req(req: &UpdateUserProfileReq) -> Result<()
         &req.real_name,
         req.hospital_id,
         req.dept_id,
-        &req.identity_type,
+        req.identity_type.as_deref(),
         req.status,
     )
 }
@@ -363,26 +363,28 @@ fn login_account_for_save(req: &CreateLoginAccountReq) -> Result<LoginAccountFor
 /// 校验用户资料公共字段，例如姓名、医院、科室、身份和状态。
 fn validate_profile_fields(
     real_name: &str,
-    hospital_id: u64,
-    dept_id: u64,
-    identity_type: &str,
+    hospital_id: Option<u64>,
+    dept_id: Option<u64>,
+    identity_type: Option<&str>,
     status: Option<i32>,
 ) -> Result<(), AppError> {
     if real_name.trim().is_empty() {
         return Err(AppError::BadRequest("姓名不能为空".to_string()));
     }
-    if hospital_id == 0 {
-        return Err(AppError::BadRequest("医院不能为空".to_string()));
+    if hospital_id.is_some_and(|value| value == 0) {
+        return Err(AppError::BadRequest("医院不正确".to_string()));
     }
-    if dept_id == 0 {
-        return Err(AppError::BadRequest("科室不能为空".to_string()));
+    if dept_id.is_some_and(|value| value == 0) {
+        return Err(AppError::BadRequest("科室不正确".to_string()));
     }
 
-    if !matches!(
-        identity_type,
-        IDENTITY_MEDICAL_WORKER | IDENTITY_NON_MEDICAL_WORKER
-    ) {
-        return Err(AppError::BadRequest("身份类型不正确".to_string()));
+    if let Some(identity_type) = identity_type.map(str::trim) {
+        if !matches!(
+            identity_type,
+            IDENTITY_MEDICAL_WORKER | IDENTITY_NON_MEDICAL_WORKER
+        ) {
+            return Err(AppError::BadRequest("身份类型不正确".to_string()));
+        }
     }
     validate_enabled_or_disabled(status, "状态只能是0或1")
 }

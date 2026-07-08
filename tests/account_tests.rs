@@ -1,12 +1,12 @@
 use medi_stream_rust::account::account_model::{
-    AccountDetail, CreateAccountReq, CreateLoginAccountReq, LoginType, UserLoginAccount,
-    UserProfile,
+    AccountDetail, CreateAccountReq, CreateLoginAccountReq, LoginType, UpdateUserProfileReq,
+    UserLoginAccount, UserProfile,
 };
 use medi_stream_rust::account::account_service::{
     account_login_reqs, account_token_subject, hash_password, login_password_hash,
     require_claim_user_id, require_login_identifier, require_login_verification_code,
     require_third_party_union_id, validate_create_account_req, validate_create_login_account_req,
-    validate_verified_login_account, verify_password,
+    validate_update_user_profile_req, validate_verified_login_account, verify_password,
 };
 use medi_stream_rust::common::jwt::Claims;
 
@@ -27,6 +27,34 @@ fn create_account_accepts_required_medical_profile_fields() {
     let req = valid_create_req();
 
     validate_create_account_req(&req).expect("valid account request should pass validation");
+}
+
+/// 创建业务数据，并返回创建后的记录。
+#[test]
+fn create_account_accepts_nullable_profile_fields() {
+    let req = serde_json::json!({
+        "realName": "张三",
+        "loginType": "EMAIL",
+        "loginIdentifier": "doctor@example.com",
+        "password": "secret-123456",
+        "isVerified": 1
+    });
+    let req = serde_json::from_value::<CreateAccountReq>(req)
+        .expect("nullable profile fields should not be required by JSON");
+
+    validate_create_account_req(&req).expect("nullable profile fields should pass validation");
+}
+
+/// 更新业务数据，并在目标不存在时返回 NotFound。
+#[test]
+fn update_profile_accepts_nullable_profile_fields() {
+    let req = serde_json::json!({
+        "realName": "张三"
+    });
+    let req = serde_json::from_value::<UpdateUserProfileReq>(req)
+        .expect("nullable profile fields should not be required by JSON");
+
+    validate_update_user_profile_req(&req).expect("nullable profile fields should pass validation");
 }
 
 /// 创建业务数据，并返回创建后的记录。
@@ -255,9 +283,9 @@ fn valid_create_req() -> CreateAccountReq {
         user_code: Some("U001".to_string()),
         real_name: "张三".to_string(),
         nickname: Some("医生张".to_string()),
-        hospital_id: 1,
-        dept_id: 2,
-        identity_type: "MEDICAL_WORKER".to_string(),
+        hospital_id: Some(1),
+        dept_id: Some(2),
+        identity_type: Some("MEDICAL_WORKER".to_string()),
         doctor_cert_no: Some("CERT001".to_string()),
         id_card_no: Some("110101199001011234".to_string()),
         login_type: Some(LoginType::Email),
@@ -297,9 +325,9 @@ fn account_detail(id: Option<u64>, login_accounts: Vec<UserLoginAccount>) -> Acc
             user_code: Some("U001".to_string()),
             real_name: "张三".to_string(),
             nickname: None,
-            hospital_id: 1,
-            dept_id: 2,
-            identity_type: "MEDICAL_WORKER".to_string(),
+            hospital_id: Some(1),
+            dept_id: Some(2),
+            identity_type: Some("MEDICAL_WORKER".to_string()),
             doctor_cert_no: None,
             id_card_no: None,
             status: 1,
