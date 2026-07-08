@@ -28,6 +28,7 @@ pub struct Settings {
     pub wechat_access_token_expire_seconds: Option<i64>,
     /// 前端 H5 基础地址，用于微信 OAuth 完成后重定向回前端。
     pub web_base_url: String,
+    pub wechat_oauth_callback_base_url: Option<String>,
 }
 
 impl Settings {
@@ -77,6 +78,9 @@ impl Settings {
             ),
             web_base_url: env::var(env_constants::WEB_BASE_URL)
                 .unwrap_or_else(|_| env_constants::DEFAULT_WEB_BASE_URL.to_string()),
+            wechat_oauth_callback_base_url: optional_env(
+                env_constants::WECHAT_OAUTH_CALLBACK_BASE_URL,
+            ),
         })
     }
 }

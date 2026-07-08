@@ -53,6 +53,8 @@ pub mod env {
     /// 前端 H5 基础地址。
     pub const WEB_BASE_URL: &str = "WEB_BASE_URL";
     pub const DEFAULT_WEB_BASE_URL: &str = "http://127.0.0.1:3000";
+    /// 微信 OAuth 回调基础地址。
+    pub const WECHAT_OAUTH_CALLBACK_BASE_URL: &str = "WECHAT_OAUTH_CALLBACK_BASE_URL";
 }
 
 pub mod cache {

@@ -29,4 +29,5 @@ pub struct AppState {
     ///
     /// 微信 OAuth callback 拿到 openId 并签发 JWT 后，会跳回这个地址。
     pub web_base_url: String,
+    pub wechat_oauth_callback_base_url: Option<String>,
 }

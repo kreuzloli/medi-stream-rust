@@ -171,8 +171,13 @@ pub fn build_wechat_oauth_authorize_url(
         .map(str::trim)
         .filter(|val| !val.is_empty())
         .ok_or_else(|| AppError::Internal("WECHAT_APP_ID 未配置".to_string()))?;
-    let web_base_url = state.web_base_url.trim_end_matches('/');
-    let callback_url = format!("{web_base_url}{WECHAT_OAUTH_CALLBACK_PATH}");
+    let callback_base_url = state
+        .wechat_oauth_callback_base_url
+        .as_deref()
+        .unwrap_or(&state.web_base_url)
+        .trim_end_matches('/');
+
+    let callback_url = format!("{callback_base_url}{WECHAT_OAUTH_CALLBACK_PATH}");
     // state 暂时保存前端路由，例如 /wechat-live-play。
     // 这里做 URL 编码，避免特殊字符破坏微信授权 URL。
     let encoded_callback = urlencoding::encode(&callback_url);
