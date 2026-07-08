@@ -45,7 +45,7 @@ impl JwtKeys {
     /// 根据用户名、角色和用户 ID 签发 JWT。
     pub fn generate_token(
         &self,
-        username: &str,
+        subject: &str,
         roles: Vec<String>,
         uid: Option<u64>,
     ) -> Result<String, AppError> {
@@ -56,7 +56,7 @@ impl JwtKeys {
             .as_secs() as i64;
         let claims = Claims {
             iss: self.issuer.clone(),
-            sub: username.to_string(),
+            sub: subject.to_string(),
             iat: now,
             exp: now + self.ttl_seconds,
             roles,

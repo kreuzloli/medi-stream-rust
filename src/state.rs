@@ -25,4 +25,8 @@ pub struct AppState {
     pub wechat_app_secret: Option<String>,
     pub wechat_encoding_aes_key: Option<String>,
     pub wechat_access_token_expire_seconds: Option<i64>,
+    /// 前端 H5 基础地址。
+    ///
+    /// 微信 OAuth callback 拿到 openId 并签发 JWT 后，会跳回这个地址。
+    pub web_base_url: String,
 }

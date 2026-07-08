@@ -1,11 +1,13 @@
 use crate::common::cache;
 use crate::common::constants::wechat::{
-    WECHAT_ACCESS_TOKEN_PATH, WECHAT_API_BASE_URL, WECHAT_CLIENT_CREDENTIAL, WECHAT_SERVICE_NAME,
+    WECHAT_ACCESS_TOKEN_PATH, WECHAT_API_BASE_URL, WECHAT_AUTHORIZATION_CODE,
+    WECHAT_CLIENT_CREDENTIAL, WECHAT_OAUTH_ACCESS_TOKEN_PATH, WECHAT_OAUTH_AUTHORIZE_URL,
+    WECHAT_OAUTH_CALLBACK_PATH, WECHAT_OAUTH_SCOPE_BASE, WECHAT_SERVICE_NAME,
     WECHAT_SUCCESS_ERRCODE,
 };
 use crate::error::AppError;
 use crate::state::AppState;
-use crate::wechat::wechat_model::WechatAccessTokenResp;
+use crate::wechat::wechat_model::{WechatAccessTokenResp, WechatOAuthAccessTokenResp};
 use sha1::{Digest, Sha1};
 
 /// 给业务层使用：获取微信 access_token。
@@ -150,4 +152,150 @@ fn build_sha1_signature(parts: &[&str]) -> String {
 
     // 转成小写 16 进制字符串。
     format!("{:x}", hasher.finalize())
+}
+
+/// 构建微信网页授权地址。
+///
+/// 前端访问：
+/// /wechat/oauth/authorize?redirect=/wechat-live-play
+///
+/// 后端会重定向到微信：
+/// https://open.weixin.qq.com/connect/oauth2/authorize...
+pub fn build_wechat_oauth_authorize_url(
+    state: &AppState,
+    redirect_path: &str,
+) -> Result<String, AppError> {
+    let app_id = state
+        .wechat_app_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|val| !val.is_empty())
+        .ok_or_else(|| AppError::Internal("WECHAT_APP_ID 未配置".to_string()))?;
+    let web_base_url = state.web_base_url.trim_end_matches('/');
+    let callback_url = format!("{web_base_url}{WECHAT_OAUTH_CALLBACK_PATH}");
+    // state 暂时保存前端路由，例如 /wechat-live-play。
+    // 这里做 URL 编码，避免特殊字符破坏微信授权 URL。
+    let encoded_callback = urlencoding::encode(&callback_url);
+    let encoded_state = urlencoding::encode(redirect_path);
+
+    let url = format!(
+        "{WECHAT_OAUTH_AUTHORIZE_URL}?appid={app_id}&redirect_uri={encoded_callback}&response_type=code&scope={WECHAT_OAUTH_SCOPE_BASE}&state={encoded_state}#wechat_redirect"
+    );
+
+    tracing::info!(
+        app_id = %app_id,
+        callback_url = %callback_url,
+        redirect_path = %redirect_path,
+        "build_wechat_oauth_authorize_url finished"
+    );
+    Ok(url)
+}
+
+/// 使用微信 OAuth code 换取 openId。
+///
+/// 注意：
+/// 这个接口返回的是网页授权 access_token 和 openId，
+/// 不是公众号全局 access_token。
+pub async fn fetch_wechat_oauth_access_token(
+    state: &AppState,
+    code: &str,
+) -> Result<WechatOAuthAccessTokenResp, AppError> {
+    let app_id = state
+        .wechat_app_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| AppError::Internal("WECHAT_APP_ID 未配置".to_string()))?;
+
+    let app_secret = state
+        .wechat_app_secret
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| AppError::Internal("WECHAT_APP_SECRET 未配置".to_string()))?;
+
+    tracing::info!(
+        app_id = %app_id,
+        code = code,
+        "fetch_wechat_oauth_access_token request started"
+    );
+    let url = format!(
+        "{}{}?appid={}&secret={}&code={}&grant_type={}",
+        WECHAT_API_BASE_URL,
+        WECHAT_OAUTH_ACCESS_TOKEN_PATH,
+        app_id,
+        app_secret,
+        code,
+        WECHAT_AUTHORIZATION_CODE
+    );
+
+    let resp = state
+        .http
+        .get_json::<WechatOAuthAccessTokenResp>(WECHAT_SERVICE_NAME, &url)
+        .await?;
+
+    tracing::info!(
+        app_id = %app_id,
+        open_id = resp.openid,
+        union_id = resp.unionid,
+        "fetch_wechat_oauth_access_token request finished"
+    );
+    Ok(resp)
+}
+
+/// 从微信 OAuth 响应中解析 openId 和 unionId。
+
+pub fn parse_wechat_oauth_open_id(
+    resp: WechatOAuthAccessTokenResp,
+) -> Result<(String, Option<String>), AppError> {
+    if let Some(errcode) = resp.errcode {
+        if errcode != WECHAT_SUCCESS_ERRCODE {
+            return Err(AppError::ExternalApi {
+                service: WECHAT_SERVICE_NAME.to_string(),
+                status: 200,
+                body: format!(
+                    "wechat oauth errcode={}, errmsg={}",
+                    errcode,
+                    resp.errmsg
+                        .unwrap_or_else(|| "unknown wechat oauth error".to_string())
+                ),
+            });
+        }
+    }
+    let open_id = resp
+        .openid
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| AppError::ExternalApi {
+            service: WECHAT_SERVICE_NAME.to_string(),
+            status: 200,
+            body: "wechat oauth response missing openid".to_string(),
+        })?;
+    tracing::info!(
+        open_id = open_id,
+        union_id = resp.unionid,
+        "parse_wechat_oauth_open_id finished"
+    );
+    Ok((open_id, resp.unionid))
+}
+
+/// 构建 OAuth 成功后的前端回跳地址。
+///
+/// 示例：
+/// https://web.example.com/#/wechat-live-play?token=xxx
+pub fn build_web_redirect_url(state: &AppState, redirect_path: &str, token: &str) -> String {
+    let web_base_url = state.web_base_url.trim_end_matches('/');
+    let normalized_path = if redirect_path.starts_with('/') {
+        redirect_path.to_string()
+    } else {
+        format!("/{redirect_path}")
+    };
+    let encoded_token = urlencoding::encode(token);
+    let url = format!("{web_base_url}/#{normalized_path}?token={encoded_token}");
+
+    tracing::info!(
+        redirect_path = %normalized_path,
+        token_len = token.len(),
+        "build_web_redirect_url finished"
+    );
+    url
 }

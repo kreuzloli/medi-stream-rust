@@ -49,6 +49,10 @@ pub mod env {
     pub const DEFAULT_WECHAT_ACCESS_TOKEN_EXPIRE_SECONDS: i64 = 7200;
     pub const WECHAT_ENCODING_AES_KEY: &str = "WECHAT_ENCODING_AES_KEY";
     pub const WECHAT_TOKEN: &str = "WECHAT_TOKEN";
+
+    /// 前端 H5 基础地址。
+    pub const WEB_BASE_URL: &str = "WEB_BASE_URL";
+    pub const DEFAULT_WEB_BASE_URL: &str = "http://127.0.0.1:3000";
 }
 
 pub mod cache {
@@ -202,6 +206,24 @@ pub mod wechat {
 
     /// 微信成功时一般没有 errcode，或者 errcode = 0。
     pub const WECHAT_SUCCESS_ERRCODE: i64 = 0;
+
+    /// 微信网页 OAuth 授权地址。
+    pub const WECHAT_OAUTH_AUTHORIZE_URL: &str =
+        "https://open.weixin.qq.com/connect/oauth2/authorize";
+
+    /// 微信网页授权 access_token。
+    ///
+    /// 注意：这个不是公众号全局 access_token。
+    pub const WECHAT_OAUTH_ACCESS_TOKEN_PATH: &str = "/sns/oauth2/access_token";
+
+    /// 微信 OAuth code 换 token 的 grant_type。
+    pub const WECHAT_AUTHORIZATION_CODE: &str = "authorization_code";
+
+    /// 静默授权，只拿 openId。
+    pub const WECHAT_OAUTH_SCOPE_BASE: &str = "snsapi_base";
+
+    /// 微信 OAuth 成功回跳路径。
+    pub const WECHAT_OAUTH_CALLBACK_PATH: &str = "/wechat/oauth/callback";
 }
 
 pub mod tencent_cloud {
@@ -250,6 +272,12 @@ pub mod route {
     /// 微信服务器推送消息回调地址。
     pub const WECHAT_CALLBACK: &str = "/wechat/callback";
 
-        /// 微信服务器推送消息回调地址。
+    /// 微信服务器推送消息回调地址。
     pub const WECHAT_RELOAD_ACCESS_TOKEN: &str = "/wechat/reload-access-token";
+
+    /// 微信网页授权入口。
+    pub const WECHAT_OAUTH_AUTHORIZE: &str = "/wechat/oauth/authorize";
+
+    /// 微信网页授权回调。
+    pub const WECHAT_OAUTH_CALLBACK: &str = "/wechat/oauth/callback";
 }

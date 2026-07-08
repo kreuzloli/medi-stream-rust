@@ -435,3 +435,72 @@ fn push_profile_filters(query_builder: &mut QueryBuilder<MySql>, query: &Account
         query_builder.push_bind(status);
     }
 }
+
+/// 根据微信 openId 查询登录账号。
+pub async fn find_wechat_login_for_auth(
+    db: &MySqlPool,
+    open_id: &str,
+) -> Result<Option<AuthLoginAccount>, AppError> {
+    tracing::info!(open_id = open_id, "find_wechat_login_for_auth started");
+    let login = find_login_for_auth(db, LoginType::Wechat, open_id).await?;
+    tracing::info!(
+        found = login.is_some(),
+        "find_wechat_login_for_auth finished"
+    );
+    Ok(login)
+}
+
+/// 创建微信首次登录用户。
+///
+/// 这个方法用于公众号 H5 静默授权首次进入：
+/// 此时用户还没有填写医院、科室、身份等资料，所以 user_info 里只写最小资料。
+pub async fn insert_wechat_user(
+    db: &MySqlPool,
+    open_id: &str,
+    union_id: Option<&str>,
+) -> Result<u64, AppError> {
+    tracing::info!(
+        open_id = open_id,
+        union_id = ?union_id,
+        "insert_wechat_user started"
+    );
+    let mut tx = db.begin().await?;
+    let user_code = Uuid::new_v4().simple().to_string();
+    let user_result = sqlx::query(
+        r#"
+        INSERT INTO user_info (
+            user_code, real_name, nickname,
+            hospital_id, dept_id, identity_type,
+            doctor_cert_no, id_card_no,
+            status, version, is_deleted
+        )
+        VALUES (?, ?, ?, NULL, NULL, NULL, NULL, NULL, 1, 0, 0)
+        "#,
+    )
+    .bind(user_code)
+    .bind("Default Wechat Nickname")
+    .bind("Default Wechat Realname")
+    .execute(&mut *tx)
+    .await?;
+    let user_id = user_result.last_insert_id();
+    sqlx::query(
+        r#"
+        INSERT INTO user_login_account (
+            user_id, login_type, login_identifier,
+            password_hash, third_party_union_id,
+            is_verified, last_login_at,
+            status, is_deleted
+        )
+        VALUES (?, ?, ?, NULL, ?, 1, NOW(), 1, 0)
+        "#,
+    )
+    .bind(user_id)
+    .bind(LoginType::Wechat.as_str())
+    .bind(open_id)
+    .bind(union_id)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    tracing::info!(user_id = user_id, "insert_wechat_user finished");
+    Ok(user_id)
+}

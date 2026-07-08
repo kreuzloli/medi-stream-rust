@@ -1,7 +1,9 @@
-use crate::error::AppError;
+use crate::account::account_service;
 use crate::state::AppState;
-use crate::wechat::wechat_model::WechatCheckSignatureQuery;
+use crate::wechat::wechat_model::{WechatCheckSignatureQuery, WechatOAuthCallbackQuery};
 use crate::wechat::wechat_service;
+use crate::{error::AppError, wechat::wechat_model::WechatOAuthAuthorizeQuery};
+use axum::response::Redirect;
 use axum::{
     extract::{Query, State},
     Json,
@@ -58,4 +60,65 @@ pub async fn reload_access_token(
         "ok": true,
         "access_token_length": access_token.len()
     })))
+}
+
+/// 微信 H5 OAuth 授权入口。
+///
+/// 前端没有 JWT 时访问：
+/// GET /wechat/oauth/authorize?redirect=/wechat-live-play
+///
+/// 后端不在这里识别用户，只负责跳转到微信授权页。
+pub async fn oauth_authorize(
+    State(state): State<AppState>,
+    Query(query): Query<WechatOAuthAuthorizeQuery>,
+) -> Result<Redirect, AppError> {
+    tracing::info!(
+        redirect = %query.redirect,
+        "wechat oauth_authorize started"
+    );
+    let authorize_url = wechat_service::build_wechat_oauth_authorize_url(&state, &query.redirect)?;
+    tracing::info!("wechat oauth_authorize redirect to wechat");
+    Ok(Redirect::temporary(&authorize_url))
+}
+
+/// 微信 H5 OAuth 回调。
+
+///
+
+/// 微信回调：
+
+/// GET /wechat/oauth/callback?code=xxx&state=xxx
+
+///
+
+/// 处理流程：
+
+/// 1. 用 code 换 openId。
+
+/// 2. 根据 openId 查/建用户。
+
+/// 3. 签发系统 JWT。
+
+/// 4. 302 跳回前端 H5。
+
+pub async fn oauth_callback(
+    State(mut state): State<AppState>,
+    Query(query): Query<WechatOAuthCallbackQuery>,
+) -> Result<Redirect, AppError> {
+    tracing::info!(
+        code = query.code,
+        state = %query.state,
+        "wechat oauth_callback started"
+    );
+    let oauth_resp = wechat_service::fetch_wechat_oauth_access_token(&state, &query.code).await?;
+    let (open_id, union_id) = wechat_service::parse_wechat_oauth_open_id(oauth_resp)?;
+    let token =
+        account_service::login_or_create_by_wechat(&mut state, &open_id, union_id.as_deref())
+            .await?;
+    let redirect_path = urlencoding::decode(&query.state)
+        .map_err(|err| AppError::BadRequest(format!("微信 OAuth state 不合法: {err}")))?
+        .to_string();
+
+    let redirect_url = wechat_service::build_web_redirect_url(&state, &redirect_path, &token);
+    Ok(Redirect::temporary(&redirect_url))
 }

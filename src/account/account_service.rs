@@ -7,6 +7,7 @@ use crate::common::cache;
 use crate::common::constants::account::{
     IDENTITY_MEDICAL_WORKER, IDENTITY_NON_MEDICAL_WORKER, MAX_LOGIN_ACCOUNT_COUNT,
 };
+use crate::common::constants::auth::ROLE_USER;
 use crate::common::jwt::Claims;
 use crate::common::validation::validate_enabled_or_disabled;
 use crate::error::AppError;
@@ -395,4 +396,55 @@ fn validate_login_identifier(login_identifier: &str) -> Result<(), AppError> {
         return Err(AppError::BadRequest("登录标识不能为空".to_string()));
     }
     Ok(())
+}
+
+/// 根据微信 openId 登录。
+///
+/// 如果 openId 已经绑定过用户：
+/// 1. 更新最后登录时间。
+/// 2. 直接签发 JWT。
+///
+/// 如果 openId 第一次出现：
+/// 1. 创建一个资料未补全的 user_info。
+/// 2. 创建 WECHAT 登录绑定。
+/// 3. 签发 JWT。
+pub async fn login_or_create_by_wechat(
+    state: &mut AppState,
+    open_id: &str,
+    union_id: Option<&str>,
+) -> Result<String, AppError> {
+    tracing::info!(
+        open_id = open_id,
+        union_id = union_id,
+        "login_or_create_by_wechat started"
+    );
+    let existing_login = account_repository::find_wechat_login_for_auth(&state.db, open_id).await?;
+    let user_id = if let Some(login) = existing_login {
+        tracing::info!(
+            user_id = login.user_id,
+            "wechat account found, touch last_login_at"
+        );
+        account_repository::touch_last_login(&state.db, login.user_id, open_id).await?;
+        login.user_id
+    } else {
+        tracing::info!("wechat account not found, create new user");
+        account_repository::insert_wechat_user(&state.db, open_id, union_id).await?
+    };
+    let account = account_repository::find_account_detail_by_id(&state.db, user_id)
+        .await?
+        .ok_or_else(|| AppError::Unauthorized("登录账户不可用".to_string()))?;
+    let uid = account
+        .profile
+        .id
+        .ok_or_else(|| AppError::Internal("login account has no user id".to_string()))?;
+    let token = state
+        .jwt
+        .generate_token(&account_token_subject(&account), vec![ROLE_USER.to_string()], Some(uid))?;
+    cache::cache_token(state, &account, &token).await?;
+    tracing::info!(
+        user_id = user_id,
+        token = token,
+        "login_or_create_by_wechat finished"
+    );
+    Ok(token)
 }

@@ -34,3 +34,45 @@ pub struct WechatCheckSignatureQuery {
     /// 微信要求校验通过后原样返回的字符串。
     pub echostr: String,
 }
+/// 前端跳转到后端微信 OAuth 入口时的 query。
+///
+/// 示例：
+/// /wechat/oauth/authorize?redirect=/wechat-live-play
+#[derive(Debug, Deserialize)]
+pub struct WechatOAuthAuthorizeQuery {
+    /// 授权完成后要回到的前端 hash 路由。
+    pub redirect: String,
+}
+
+/// 微信 OAuth callback query。
+///
+/// 微信会回调：
+/// /wechat/oauth/callback?code=xxx&state=xxx
+#[derive(Debug, Deserialize)]
+pub struct WechatOAuthCallbackQuery {
+    /// 微信返回的一次性 code。
+    pub code: String,
+
+    /// 后端 authorize 阶段传给微信的 state。
+    ///
+    /// 当前用它保存前端 redirect path。
+    pub state: String,
+}
+
+/// 网页授权 code 换 openId 的响应。
+///
+/// 注意：这里的 access_token 是“网页授权 access_token”，
+/// 不是公众号全局 access_token。
+#[derive(Debug, Deserialize)]
+pub struct WechatOAuthAccessTokenResp {
+    pub access_token: Option<String>,
+    pub expires_in: Option<i64>,
+    pub refresh_token: Option<String>,
+    pub openid: Option<String>,
+    pub scope: Option<String>,
+    pub unionid: Option<String>,
+
+    /// 微信错误返回。
+    pub errcode: Option<i64>,
+    pub errmsg: Option<String>,
+}

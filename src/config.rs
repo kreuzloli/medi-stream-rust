@@ -26,6 +26,8 @@ pub struct Settings {
     pub wechat_app_secret: Option<String>,
     pub wechat_encoding_aes_key: Option<String>,
     pub wechat_access_token_expire_seconds: Option<i64>,
+    /// 前端 H5 基础地址，用于微信 OAuth 完成后重定向回前端。
+    pub web_base_url: String,
 }
 
 impl Settings {
@@ -73,6 +75,8 @@ impl Settings {
                     .and_then(|s| s.parse().ok())
                     .unwrap_or(env_constants::DEFAULT_WECHAT_ACCESS_TOKEN_EXPIRE_SECONDS),
             ),
+            web_base_url: env::var(env_constants::WEB_BASE_URL)
+                .unwrap_or_else(|_| env_constants::DEFAULT_WEB_BASE_URL.to_string()),
         })
     }
 }
