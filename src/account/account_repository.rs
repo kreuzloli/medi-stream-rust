@@ -478,8 +478,8 @@ pub async fn insert_wechat_user(
         "#,
     )
     .bind(user_code)
-    .bind("Default Wechat Nickname")
     .bind("Default Wechat Realname")
+    .bind("Default Wechat Nickname")
     .execute(&mut *tx)
     .await?;
     let user_id = user_result.last_insert_id();
