@@ -150,7 +150,7 @@ pub fn build_push_url(
 ) -> String {
     // 腾讯云推流防盗链签名要求按 pushKey + streamName + txTime 拼 MD5。
     let base = format!(
-        "{}://{}/{}/{}",
+        "{}{}/{}/{}",
         protocol.prefix(),
         trim_slash(push_domain),
         trim_slash(app_name),
