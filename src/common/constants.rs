@@ -42,6 +42,10 @@ pub mod env {
     pub const TENCENT_LIVE_DEFAULT_TTL_SECONDS: &str = "TENCENT_LIVE_DEFAULT_TTL_SECONDS";
     pub const DEFAULT_TENCENT_LIVE_DEFAULT_TTL_SECONDS: &str = "86400";
 
+    /// 腾讯云 Web 播放器 License 配置，仅允许服务端读取。
+    pub const TENCENT_LIVE_LICENSE_URL: &str = "TENCENT_LIVE_LICENSE_URL";
+    pub const TENCENT_LIVE_LICENSE_KEY: &str = "TENCENT_LIVE_LICENSE_KEY";
+
     /// 微信服务号配置。
     pub const WECHAT_APP_ID: &str = "WECHAT_APP_ID";
     pub const WECHAT_APP_SECRET: &str = "WECHAT_APP_SECRET";
@@ -270,6 +274,7 @@ pub mod route {
 
     pub const LIVE_URLS: &str = "/live/urls";
     pub const LIVE_STREAM_STATE: &str = "/live/stream-state";
+    pub const LIVE_LICENSE: &str = "/live/license";
 
     /// 微信服务器推送消息回调地址。
     pub const WECHAT_CALLBACK: &str = "/wechat/callback";

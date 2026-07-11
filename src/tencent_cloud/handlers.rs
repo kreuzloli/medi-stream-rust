@@ -1,11 +1,14 @@
 use crate::error::AppError;
 use crate::state::AppState;
+use crate::tencent_cloud::tencent_live_license;
 use crate::tencent_cloud::tencent_live_model::{
     DescribeLiveStreamStateReq, DescribeLiveStreamStateResp, LiveUrlsQuery, LiveUrlsResp,
 };
 use crate::tencent_cloud::tencent_live_service;
 use crate::tencent_cloud::tencent_live_signer::build_live_authorization;
 use axum::extract::{Query, State};
+use axum::http::header::{CACHE_CONTROL, CONTENT_TYPE};
+use axum::response::{IntoResponse, Response};
 use axum::Json;
 use chrono::Utc;
 
@@ -28,6 +31,24 @@ pub async fn generate_live_urls(
     );
 
     Ok(Json(resp))
+}
+
+/// 代理 Web 播放器 License，避免真实 URL 和 Key 出现在前端代码中。
+pub async fn live_license(State(state): State<AppState>) -> Result<Response, AppError> {
+    let config = state
+        .tencent_live_license_config
+        .as_ref()
+        .ok_or_else(|| AppError::BadRequest("腾讯云播放器 License 未配置".to_string()))?;
+    let license = tencent_live_license::fetch_live_license(&state.http, config).await?;
+
+    Ok((
+        [
+            (CONTENT_TYPE, license.content_type),
+            (CACHE_CONTROL, "private, no-store".to_string()),
+        ],
+        license.body,
+    )
+        .into_response())
 }
 
 /// 处理腾讯云直播流状态查询接口请求。

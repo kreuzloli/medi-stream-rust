@@ -51,6 +51,7 @@ async fn main() -> anyhow::Result<()> {
         http,
         tencent_live_credential: settings.tencent_live_credential,
         tencent_live_url_config: settings.tencent_live_url_config,
+        tencent_live_license_config: settings.tencent_live_license_config,
         wechat_token: settings.wechat_token,
         wechat_app_id: settings.wechat_app_id,
         wechat_app_secret: settings.wechat_app_secret,

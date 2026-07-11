@@ -1,4 +1,5 @@
 use crate::common::constants::env as env_constants;
+use crate::tencent_cloud::tencent_live_license::LiveLicenseConfig;
 use crate::tencent_cloud::tencent_live_model::LiveUrlConfig;
 use crate::tencent_cloud::tencent_live_signer::LiveCredential;
 use anyhow::{Context, Result};
@@ -16,6 +17,7 @@ pub struct Settings {
     pub http_timeout_seconds: u64,
     pub tencent_live_credential: Option<LiveCredential>,
     pub tencent_live_url_config: Option<LiveUrlConfig>,
+    pub tencent_live_license_config: Option<LiveLicenseConfig>,
 
     /// 微信服务器推送消息校验 Token。
     ///
@@ -66,6 +68,7 @@ impl Settings {
 
             tencent_live_credential: live_credential_from_env()?,
             tencent_live_url_config: live_url_config_from_env()?,
+            tencent_live_license_config: live_license_config_from_env()?,
 
             wechat_token: optional_env(env_constants::WECHAT_TOKEN),
             wechat_app_id: optional_env(env_constants::WECHAT_APP_ID),
@@ -82,6 +85,20 @@ impl Settings {
                 env_constants::WECHAT_OAUTH_CALLBACK_BASE_URL,
             ),
         })
+    }
+}
+
+/// 读取 Web 播放器 License 配置；URL 和 Key 必须成对配置。
+fn live_license_config_from_env() -> Result<Option<LiveLicenseConfig>> {
+    let url = optional_env(env_constants::TENCENT_LIVE_LICENSE_URL);
+    let key = optional_env(env_constants::TENCENT_LIVE_LICENSE_KEY);
+
+    match (url, key) {
+        (Some(url), Some(key)) => Ok(Some(LiveLicenseConfig { url, key })),
+        (None, None) => Ok(None),
+        _ => anyhow::bail!(
+            "TENCENT_LIVE_LICENSE_URL and TENCENT_LIVE_LICENSE_KEY must be configured together"
+        ),
     }
 }
 

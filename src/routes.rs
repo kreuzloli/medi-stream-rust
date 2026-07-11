@@ -43,6 +43,10 @@ pub fn router(state: AppState) -> Router {
             route::LIVE_STREAM_STATE,
             post(tencent_cloud_handlers::describe_live_stream_state),
         )
+        .route(
+            route::LIVE_LICENSE,
+            get(tencent_cloud_handlers::live_license),
+        )
         .route(route::ACCOUNT, get(account_handlers::get_account))
         .route(
             route::ACCOUNT_BIND_LOGIN,

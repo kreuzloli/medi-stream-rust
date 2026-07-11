@@ -1,4 +1,5 @@
 use crate::common::{HttpClient, JwtKeys};
+use crate::tencent_cloud::tencent_live_license::LiveLicenseConfig;
 use crate::tencent_cloud::tencent_live_model::LiveUrlConfig;
 use crate::tencent_cloud::tencent_live_signer::LiveCredential;
 use redis::aio::ConnectionManager;
@@ -18,6 +19,8 @@ pub struct AppState {
     pub tencent_live_credential: Option<LiveCredential>,
     // 腾讯云直播推流/播放 URL 配置。未配置时只禁用 URL 生成接口。
     pub tencent_live_url_config: Option<LiveUrlConfig>,
+    // Web 播放器 License 私有配置，仅供服务端代理读取。
+    pub tencent_live_license_config: Option<LiveLicenseConfig>,
 
     /// 微信服务器推送消息校验 Token。
     pub wechat_token: Option<String>,
