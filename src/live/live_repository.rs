@@ -78,16 +78,21 @@ pub async fn insert_live_room(db: &MySqlPool, req: &SaveLiveRoomReq) -> Result<u
     let result = sqlx::query(
         r#"
         INSERT INTO live_room (
-            owner_user_id, room_code, title, description, cover_file_id, status
+            owner_user_id, owner_admin_id, room_code, title, description, cover_file_id,
+            department_id, disease_id, is_top, status
         )
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         "#,
     )
     .bind(req.owner_user_id)
+    .bind(req.owner_admin_id)
     .bind(req.room_code.trim())
     .bind(req.title.trim())
     .bind(trim_optional(&req.description))
     .bind(req.cover_file_id)
+    .bind(req.department_id)
+    .bind(req.disease_id)
+    .bind(req.is_top.unwrap_or(0))
     .bind(req.status.unwrap_or(1))
     .execute(db)
     .await?;
@@ -100,8 +105,8 @@ pub async fn find_live_room_by_id(db: &MySqlPool, id: u64) -> Result<Option<Live
     Ok(sqlx::query_as::<_, LiveRoom>(
         r#"
         SELECT
-            id, owner_user_id, room_code, title, description, cover_file_id,
-            status, is_deleted, created_at, updated_at
+            id, owner_user_id, owner_admin_id, room_code, title, description, cover_file_id,
+            department_id, disease_id, is_top, status, is_deleted, created_at, updated_at
         FROM live_room
         WHERE id = ? AND is_deleted = 0
         "#,
@@ -121,16 +126,21 @@ pub async fn update_live_room(
         r#"
         UPDATE live_room
         SET
-            owner_user_id = ?, room_code = ?, title = ?, description = ?,
-            cover_file_id = ?, status = ?
+            owner_user_id = ?, owner_admin_id = ?, room_code = ?, title = ?, description = ?,
+            cover_file_id = ?, department_id = ?, disease_id = ?,
+            is_top = COALESCE(?, is_top), status = ?
         WHERE id = ? AND is_deleted = 0
         "#,
     )
     .bind(req.owner_user_id)
+    .bind(req.owner_admin_id)
     .bind(req.room_code.trim())
     .bind(req.title.trim())
     .bind(trim_optional(&req.description))
     .bind(req.cover_file_id)
+    .bind(req.department_id)
+    .bind(req.disease_id)
+    .bind(req.is_top)
     .bind(req.status.unwrap_or(1))
     .bind(id)
     .execute(db)
@@ -156,11 +166,12 @@ pub async fn page_live_rooms(
 ) -> Result<Page<LiveRoom>, AppError> {
     let (page, size, offset) = page_params(query.page, query.size);
     let mut data_query = QueryBuilder::<MySql>::new(
-        "SELECT id, owner_user_id, room_code, title, description, cover_file_id, \
-         status, is_deleted, created_at, updated_at FROM live_room WHERE is_deleted = 0",
+        "SELECT id, owner_user_id, owner_admin_id, room_code, title, description, cover_file_id, \
+         department_id, disease_id, is_top, status, is_deleted, created_at, updated_at \
+         FROM live_room WHERE is_deleted = 0",
     );
     push_live_room_filters(&mut data_query, &query);
-    data_query.push(" ORDER BY id DESC LIMIT ");
+    data_query.push(" ORDER BY is_top DESC, id DESC LIMIT ");
     data_query.push_bind(size);
     data_query.push(" OFFSET ");
     data_query.push_bind(offset);
@@ -336,6 +347,22 @@ fn push_live_room_filters(query_builder: &mut QueryBuilder<MySql>, query: &LiveR
         query_builder.push(" AND owner_user_id = ");
         query_builder.push_bind(owner_user_id);
     }
+    if let Some(owner_admin_id) = query.owner_admin_id {
+        query_builder.push(" AND owner_admin_id = ");
+        query_builder.push_bind(owner_admin_id);
+    }
+    if let Some(department_id) = query.department_id {
+        query_builder.push(" AND department_id = ");
+        query_builder.push_bind(department_id);
+    }
+    if let Some(disease_id) = query.disease_id {
+        query_builder.push(" AND disease_id = ");
+        query_builder.push_bind(disease_id);
+    }
+    if let Some(is_top) = query.is_top {
+        query_builder.push(" AND is_top = ");
+        query_builder.push_bind(is_top);
+    }
     if let Some(room_code) = not_blank(&query.room_code) {
         query_builder.push(" AND room_code LIKE ");
         query_builder.push_bind(format!("%{}%", room_code));
@@ -348,6 +375,60 @@ fn push_live_room_filters(query_builder: &mut QueryBuilder<MySql>, query: &LiveR
         query_builder.push(" AND status = ");
         query_builder.push_bind(status);
     }
+}
+
+/// 检查普通用户是否可作为直播间所有者。
+pub async fn exists_active_user(db: &MySqlPool, user_id: u64) -> Result<bool, AppError> {
+    Ok(sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM user_info WHERE id = ? AND status = 1 AND is_deleted = 0)",
+    )
+    .bind(user_id)
+    .fetch_one(db)
+    .await?)
+}
+
+/// 检查管理员是否可作为直播间所有者。
+pub async fn exists_active_administrator(db: &MySqlPool, admin_id: u64) -> Result<bool, AppError> {
+    Ok(sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM administrator WHERE id = ? AND status = 1 AND is_deleted = 0)",
+    )
+    .bind(admin_id)
+    .fetch_one(db)
+    .await?)
+}
+
+/// 检查直播间选择的科室是否存在。
+pub async fn exists_department(db: &MySqlPool, department_id: u64) -> Result<bool, AppError> {
+    Ok(
+        sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM department WHERE id = ?)")
+            .bind(department_id)
+            .fetch_one(db)
+            .await?,
+    )
+}
+
+/// 检查疾病是否存在；指定科室时同时校验疾病从属关系。
+pub async fn exists_disease(
+    db: &MySqlPool,
+    disease_id: u64,
+    department_id: Option<u64>,
+) -> Result<bool, AppError> {
+    let exists = if let Some(department_id) = department_id {
+        sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS(SELECT 1 FROM disease WHERE id = ? AND dept_id = ?)",
+        )
+        .bind(disease_id)
+        .bind(department_id)
+        .fetch_one(db)
+        .await?
+    } else {
+        sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM disease WHERE id = ?)")
+            .bind(disease_id)
+            .fetch_one(db)
+            .await?
+    };
+
+    Ok(exists)
 }
 
 /// 向动态 SQL 追加查询条件。

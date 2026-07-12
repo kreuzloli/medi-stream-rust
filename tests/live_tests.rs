@@ -34,6 +34,67 @@ fn save_live_room_accepts_status_two_for_banned_room() {
     validate_save_live_room_req(&req).expect("room status 2 should be accepted");
 }
 
+#[test]
+fn save_live_room_requires_exactly_one_owner() {
+    let no_owner = SaveLiveRoomReq {
+        owner_user_id: None,
+        owner_admin_id: None,
+        ..valid_room_req()
+    };
+    let both_owners = SaveLiveRoomReq {
+        owner_user_id: Some(1),
+        owner_admin_id: Some(2),
+        ..valid_room_req()
+    };
+
+    let no_owner_err =
+        validate_save_live_room_req(&no_owner).expect_err("room without owner must be rejected");
+    let both_owners_err = validate_save_live_room_req(&both_owners)
+        .expect_err("room with user and administrator owners must be rejected");
+
+    assert!(no_owner_err.to_string().contains("房主必须且只能指定一个"));
+    assert!(both_owners_err
+        .to_string()
+        .contains("房主必须且只能指定一个"));
+}
+
+#[test]
+fn save_live_room_treats_zero_id_as_a_supplied_owner() {
+    let req = SaveLiveRoomReq {
+        owner_user_id: Some(0),
+        owner_admin_id: Some(2),
+        ..valid_room_req()
+    };
+
+    let err = validate_save_live_room_req(&req)
+        .expect_err("two supplied owner fields must be rejected before reference lookup");
+
+    assert!(err.to_string().contains("房主必须且只能指定一个"));
+}
+
+#[test]
+fn save_live_room_accepts_administrator_owner() {
+    let req = SaveLiveRoomReq {
+        owner_user_id: None,
+        owner_admin_id: Some(2),
+        ..valid_room_req()
+    };
+
+    validate_save_live_room_req(&req).expect("administrator owner should be accepted");
+}
+
+#[test]
+fn save_live_room_rejects_invalid_top_flag() {
+    let req = SaveLiveRoomReq {
+        is_top: Some(2),
+        ..valid_room_req()
+    };
+
+    let err = validate_save_live_room_req(&req).expect_err("invalid top flag must be rejected");
+
+    assert!(err.to_string().contains("置顶标记只能是0或1"));
+}
+
 /// 验证保存请求的核心行为。
 #[test]
 fn save_live_stream_rejects_invalid_default_flag() {
@@ -52,11 +113,15 @@ fn save_live_stream_rejects_invalid_default_flag() {
 fn live_room_detail_can_contain_multiple_streams() {
     let room = LiveRoom {
         id: 10,
-        owner_user_id: 1,
+        owner_user_id: Some(1),
+        owner_admin_id: None,
         room_code: "room001".to_string(),
         title: "示教直播间".to_string(),
         description: None,
         cover_file_id: None,
+        department_id: Some(1),
+        disease_id: Some(2),
+        is_top: 1,
         status: 1,
         is_deleted: 0,
         created_at: None,
@@ -101,11 +166,15 @@ fn live_room_detail_can_contain_multiple_streams() {
 /// 构造测试使用的有效请求对象。
 fn valid_room_req() -> SaveLiveRoomReq {
     SaveLiveRoomReq {
-        owner_user_id: 1,
+        owner_user_id: Some(1),
+        owner_admin_id: None,
         room_code: "room001".to_string(),
         title: "示教直播间".to_string(),
         description: Some("多路直播".to_string()),
         cover_file_id: Some(1),
+        department_id: None,
+        disease_id: None,
+        is_top: Some(0),
         status: Some(1),
     }
 }

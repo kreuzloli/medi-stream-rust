@@ -29,10 +29,17 @@ pub fn validate_save_file_object_req(req: &SaveFileObjectReq) -> Result<(), AppE
     Ok(())
 }
 
-/// 校验直播房间保存请求，确保房主、编码、标题和状态合法。
+/// 校验直播房间保存请求，确保所有者唯一且基础字段合法。
 pub fn validate_save_live_room_req(req: &SaveLiveRoomReq) -> Result<(), AppError> {
-    if req.owner_user_id == 0 {
-        return Err(AppError::BadRequest("房主用户不能为空".to_string()));
+    let has_user_owner = req.owner_user_id.is_some();
+    let has_admin_owner = req.owner_admin_id.is_some();
+    if has_user_owner == has_admin_owner {
+        return Err(AppError::BadRequest(
+            "房主必须且只能指定一个普通用户或管理员".to_string(),
+        ));
+    }
+    if req.owner_user_id == Some(0) || req.owner_admin_id == Some(0) {
+        return Err(AppError::BadRequest("房主ID必须大于0".to_string()));
     }
     if req.room_code.trim().is_empty() {
         return Err(AppError::BadRequest("房间编码不能为空".to_string()));
@@ -40,7 +47,72 @@ pub fn validate_save_live_room_req(req: &SaveLiveRoomReq) -> Result<(), AppError
     if req.title.trim().is_empty() {
         return Err(AppError::BadRequest("房间标题不能为空".to_string()));
     }
+    validate_enabled_or_disabled(req.is_top, "置顶标记只能是0或1")?;
     validate_room_status(req.status)
+}
+
+/// 校验所有者和直播间分类引用，提前返回比数据库外键更明确的业务错误。
+async fn validate_live_room_references(
+    state: &AppState,
+    req: &SaveLiveRoomReq,
+) -> Result<(), AppError> {
+    if let Some(owner_user_id) = req.owner_user_id {
+        if !live_repository::exists_active_user(&state.db, owner_user_id).await? {
+            return Err(AppError::BadRequest(
+                "房主用户不存在、已停用或已删除".to_string(),
+            ));
+        }
+    }
+    if let Some(owner_admin_id) = req.owner_admin_id {
+        if !live_repository::exists_active_administrator(&state.db, owner_admin_id).await? {
+            return Err(AppError::BadRequest(
+                "房主管理员不存在、已停用或已删除".to_string(),
+            ));
+        }
+    }
+    if let Some(department_id) = req.department_id {
+        if !live_repository::exists_department(&state.db, department_id).await? {
+            return Err(AppError::BadRequest("直播间科室不存在".to_string()));
+        }
+    }
+    if let Some(disease_id) = req.disease_id {
+        if !live_repository::exists_disease(&state.db, disease_id, req.department_id).await? {
+            let message = if req.department_id.is_some() {
+                "直播间疾病不存在或不属于所选科室"
+            } else {
+                "直播间疾病不存在"
+            };
+            return Err(AppError::BadRequest(message.to_string()));
+        }
+    }
+
+    Ok(())
+}
+
+/// 执行直播间完整校验，并在失败时记录可用于排查的业务标识。
+async fn validate_live_room_for_persistence(
+    state: &AppState,
+    room_id: Option<u64>,
+    req: &SaveLiveRoomReq,
+) -> Result<(), AppError> {
+    let result = match validate_save_live_room_req(req) {
+        Ok(()) => validate_live_room_references(state, req).await,
+        Err(error) => Err(error),
+    };
+
+    if let Err(error) = &result {
+        tracing::warn!(
+            room_id = ?room_id,
+            owner_user_id = ?req.owner_user_id,
+            owner_admin_id = ?req.owner_admin_id,
+            department_id = ?req.department_id,
+            disease_id = ?req.disease_id,
+            error = %error,
+            "live room validation failed"
+        );
+    }
+
+    result
 }
 
 /// 校验直播流保存请求，确保房间、流编码、streamName 和标记合法。
@@ -100,9 +172,13 @@ pub async fn create_live_room(
     state: &AppState,
     req: SaveLiveRoomReq,
 ) -> Result<LiveRoom, AppError> {
-    validate_save_live_room_req(&req)?;
+    validate_live_room_for_persistence(state, None, &req).await?;
     tracing::info!(
-        owner_user_id = req.owner_user_id,
+        owner_user_id = ?req.owner_user_id,
+        owner_admin_id = ?req.owner_admin_id,
+        department_id = ?req.department_id,
+        disease_id = ?req.disease_id,
+        is_top = req.is_top.unwrap_or(0),
         room_code = %req.room_code.trim(),
         title = %req.title.trim(),
         "create_live_room request validated"
@@ -144,9 +220,14 @@ pub async fn update_live_room(
     id: u64,
     req: SaveLiveRoomReq,
 ) -> Result<LiveRoom, AppError> {
-    validate_save_live_room_req(&req)?;
+    validate_live_room_for_persistence(state, Some(id), &req).await?;
     tracing::info!(
         room_id = id,
+        owner_user_id = ?req.owner_user_id,
+        owner_admin_id = ?req.owner_admin_id,
+        department_id = ?req.department_id,
+        disease_id = ?req.disease_id,
+        is_top = req.is_top.unwrap_or(0),
         room_code = %req.room_code.trim(),
         "update_live_room request validated"
     );

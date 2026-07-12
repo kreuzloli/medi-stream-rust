@@ -38,11 +38,16 @@ pub struct FileObjectPageQuery {
 #[serde(rename_all = "camelCase")]
 pub struct LiveRoom {
     pub id: u64,
-    pub owner_user_id: u64,
+    // 普通用户和管理员使用独立所有者字段，数据库和 Service 都保证二选一。
+    pub owner_user_id: Option<u64>,
+    pub owner_admin_id: Option<u64>,
     pub room_code: String,
     pub title: String,
     pub description: Option<String>,
     pub cover_file_id: Option<u64>,
+    pub department_id: Option<u64>,
+    pub disease_id: Option<u64>,
+    pub is_top: i8,
     pub status: i8,
     pub is_deleted: i8,
     pub created_at: Option<NaiveDateTime>,
@@ -61,11 +66,15 @@ pub struct LiveRoomDetail {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SaveLiveRoomReq {
-    pub owner_user_id: u64,
+    pub owner_user_id: Option<u64>,
+    pub owner_admin_id: Option<u64>,
     pub room_code: String,
     pub title: String,
     pub description: Option<String>,
     pub cover_file_id: Option<u64>,
+    pub department_id: Option<u64>,
+    pub disease_id: Option<u64>,
+    pub is_top: Option<i32>,
     pub status: Option<i32>,
 }
 
@@ -75,6 +84,10 @@ pub struct LiveRoomPageQuery {
     pub page: Option<u64>,
     pub size: Option<u64>,
     pub owner_user_id: Option<u64>,
+    pub owner_admin_id: Option<u64>,
+    pub department_id: Option<u64>,
+    pub disease_id: Option<u64>,
+    pub is_top: Option<i32>,
     pub room_code: Option<String>,
     pub title: Option<String>,
     pub status: Option<i32>,

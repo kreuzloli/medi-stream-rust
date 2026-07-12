@@ -140,3 +140,96 @@ CREATE TABLE live_room_stream (
     KEY idx_room (room_id),
     KEY idx_room_status (room_id, status, is_deleted)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '直播间多路流/视频源';
+
+-- 管理后台与本服务共享数据库。以下为增量结构，本项目不实现管理员后台接口。
+CREATE TABLE administrator (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    username VARCHAR(128) NOT NULL COMMENT '管理员登录名',
+    password_hash VARCHAR(255) NOT NULL COMMENT '密码哈希，不保存明文密码',
+    real_name VARCHAR(128) NOT NULL COMMENT '管理员姓名',
+    last_login_at DATETIME NULL COMMENT '最后登录时间',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '状态 1启用 0停用',
+    is_deleted TINYINT NOT NULL DEFAULT 0 COMMENT '是否删除 0否 1是',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_administrator_username (username),
+    KEY idx_administrator_status_deleted (status, is_deleted)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '管理员账号';
+
+CREATE TABLE admin_role (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    role_code VARCHAR(64) NOT NULL COMMENT '角色编码',
+    role_name VARCHAR(128) NOT NULL COMMENT '角色名称',
+    description VARCHAR(512) NULL COMMENT '角色说明',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '状态 1启用 0停用',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_admin_role_code (role_code),
+    UNIQUE KEY uk_admin_role_name (role_name),
+    KEY idx_admin_role_status (status)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '管理员角色';
+
+CREATE TABLE admin_permission (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    permission_code VARCHAR(128) NOT NULL COMMENT '权限编码',
+    permission_name VARCHAR(128) NOT NULL COMMENT '权限名称',
+    resource_type VARCHAR(32) NULL COMMENT '资源类型 MENU菜单 API接口 BUTTON按钮',
+    description VARCHAR(512) NULL COMMENT '权限说明',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '状态 1启用 0停用',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_admin_permission_code (permission_code),
+    KEY idx_admin_permission_status (status)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '管理员权限';
+
+CREATE TABLE administrator_role (
+    administrator_id BIGINT UNSIGNED NOT NULL COMMENT '管理员ID',
+    role_id BIGINT UNSIGNED NOT NULL COMMENT '角色ID',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (administrator_id, role_id),
+    KEY idx_administrator_role_role (role_id),
+    CONSTRAINT fk_administrator_role_administrator FOREIGN KEY (administrator_id)
+        REFERENCES administrator (id) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT fk_administrator_role_role FOREIGN KEY (role_id)
+        REFERENCES admin_role (id) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '管理员角色关联';
+
+CREATE TABLE role_permission (
+    role_id BIGINT UNSIGNED NOT NULL COMMENT '角色ID',
+    permission_id BIGINT UNSIGNED NOT NULL COMMENT '权限ID',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (role_id, permission_id),
+    KEY idx_role_permission_permission (permission_id),
+    CONSTRAINT fk_role_permission_role FOREIGN KEY (role_id)
+        REFERENCES admin_role (id) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT fk_role_permission_permission FOREIGN KEY (permission_id)
+        REFERENCES admin_permission (id) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '角色权限关联';
+
+-- 保留普通用户所有者字段，同时增加独立管理员所有者字段；已有数据无需回填。
+ALTER TABLE live_room
+    DROP FOREIGN KEY fk_room_owner,
+    MODIFY COLUMN owner_user_id BIGINT UNSIGNED NULL COMMENT '房主普通用户ID',
+    ADD COLUMN owner_admin_id BIGINT UNSIGNED NULL COMMENT '房主管理员ID' AFTER owner_user_id,
+    ADD COLUMN department_id BIGINT UNSIGNED NULL COMMENT '直播间科室分类ID' AFTER cover_file_id,
+    ADD COLUMN disease_id BIGINT UNSIGNED NULL COMMENT '直播间疾病分类ID' AFTER department_id,
+    ADD COLUMN is_top TINYINT NOT NULL DEFAULT 0 COMMENT '是否置顶 0否 1是' AFTER disease_id,
+    ADD CONSTRAINT fk_room_owner_user FOREIGN KEY (owner_user_id)
+        REFERENCES user_info (id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    ADD CONSTRAINT fk_room_owner_admin FOREIGN KEY (owner_admin_id)
+        REFERENCES administrator (id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    ADD CONSTRAINT fk_room_department FOREIGN KEY (department_id)
+        REFERENCES department (id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    ADD CONSTRAINT fk_room_disease FOREIGN KEY (disease_id)
+        REFERENCES disease (id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    ADD CONSTRAINT chk_live_room_single_owner CHECK (
+        (owner_user_id IS NOT NULL AND owner_admin_id IS NULL)
+        OR (owner_user_id IS NULL AND owner_admin_id IS NOT NULL)
+    ),
+    ADD CONSTRAINT chk_live_room_is_top CHECK (is_top IN (0, 1)),
+    ADD KEY idx_room_owner_admin (owner_admin_id),
+    ADD KEY idx_room_department_disease (department_id, disease_id),
+    ADD KEY idx_room_top_status_deleted (is_top, status, is_deleted);
