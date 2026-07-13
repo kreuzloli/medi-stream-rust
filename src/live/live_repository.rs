@@ -79,9 +79,9 @@ pub async fn insert_live_room(db: &MySqlPool, req: &SaveLiveRoomReq) -> Result<u
         r#"
         INSERT INTO live_room (
             owner_user_id, owner_admin_id, room_code, title, description, cover_file_id,
-            department_id, disease_id, is_top, status
+            department_id, disease_id, is_top, start_time, status
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         "#,
     )
     .bind(req.owner_user_id)
@@ -93,6 +93,7 @@ pub async fn insert_live_room(db: &MySqlPool, req: &SaveLiveRoomReq) -> Result<u
     .bind(req.department_id)
     .bind(req.disease_id)
     .bind(req.is_top.unwrap_or(0))
+    .bind(req.start_time)
     .bind(req.status.unwrap_or(1))
     .execute(db)
     .await?;
@@ -106,7 +107,7 @@ pub async fn find_live_room_by_id(db: &MySqlPool, id: u64) -> Result<Option<Live
         r#"
         SELECT
             id, owner_user_id, owner_admin_id, room_code, title, description, cover_file_id,
-            department_id, disease_id, is_top, status, is_deleted, created_at, updated_at
+            department_id, disease_id, is_top, start_time, status, is_deleted, created_at, updated_at
         FROM live_room
         WHERE id = ? AND is_deleted = 0
         "#,
@@ -128,7 +129,7 @@ pub async fn update_live_room(
         SET
             owner_user_id = ?, owner_admin_id = ?, room_code = ?, title = ?, description = ?,
             cover_file_id = ?, department_id = ?, disease_id = ?,
-            is_top = COALESCE(?, is_top), status = ?
+            is_top = COALESCE(?, is_top), start_time = ?, status = ?
         WHERE id = ? AND is_deleted = 0
         "#,
     )
@@ -141,6 +142,7 @@ pub async fn update_live_room(
     .bind(req.department_id)
     .bind(req.disease_id)
     .bind(req.is_top)
+    .bind(req.start_time)
     .bind(req.status.unwrap_or(1))
     .bind(id)
     .execute(db)
@@ -167,11 +169,11 @@ pub async fn page_live_rooms(
     let (page, size, offset) = page_params(query.page, query.size);
     let mut data_query = QueryBuilder::<MySql>::new(
         "SELECT id, owner_user_id, owner_admin_id, room_code, title, description, cover_file_id, \
-         department_id, disease_id, is_top, status, is_deleted, created_at, updated_at \
+         department_id, disease_id, is_top, start_time, status, is_deleted, created_at, updated_at \
          FROM live_room WHERE is_deleted = 0",
     );
     push_live_room_filters(&mut data_query, &query);
-    data_query.push(" ORDER BY is_top DESC, id DESC LIMIT ");
+    data_query.push(" ORDER BY is_top DESC, CASE WHEN start_time IS NULL THEN 1 ELSE 0 END, start_time ASC, id DESC ");
     data_query.push_bind(size);
     data_query.push(" OFFSET ");
     data_query.push_bind(offset);

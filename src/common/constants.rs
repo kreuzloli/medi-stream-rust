@@ -256,30 +256,45 @@ pub mod tencent_cloud {
 }
 
 pub mod route {
+    /// 用户登录并获取访问令牌。
     pub const AUTH_LOGIN: &str = "/auth/login";
+    /// 用户退出登录并使当前令牌失效。
     pub const AUTH_LOGOUT: &str = "/auth/logout";
+    /// 获取当前已登录用户的信息。
     pub const AUTH_ME: &str = "/auth/me";
+    /// 注册新的普通用户账号。
     pub const AUTH_REGISTER: &str = "/auth/register";
 
+    /// 获取当前用户的账号详情。
     pub const ACCOUNT: &str = "/account";
+    /// 为当前用户绑定新的登录方式。
     pub const ACCOUNT_BIND_LOGIN: &str = "/account/bind/login";
+    /// 解除当前用户指定登录方式的绑定。
     pub const ACCOUNT_UNBIND: &str = "/account/unbind/:login_id";
 
+    /// 查询全部启用的科室。
     pub const CATALOG_DEPARTMENTS: &str = "/catalog/departments";
+    /// 查询指定科室下的疾病。
     pub const CATALOG_DEPARTMENT_DISEASES: &str = "/catalog/departments/:dept_id/diseases";
+    /// 获取包含科室及疾病的完整目录。
     pub const CATALOG_FULL: &str = "/catalog/full";
 
+    /// 分页查询医院或创建医院。
     pub const HOSPITALS: &str = "/hospitals";
+    /// 查询、更新或删除指定医院。
     pub const HOSPITAL_BY_ID: &str = "/hospitals/:id";
 
+    /// 根据直播配置生成腾讯云推流和播放地址。
     pub const LIVE_URLS: &str = "/live/urls";
+    /// 查询腾讯云直播流的当前状态。
     pub const LIVE_STREAM_STATE: &str = "/live/stream-state";
+    /// 获取前端播放器所需的腾讯云 License 配置。
     pub const LIVE_LICENSE: &str = "/live/license";
 
-    /// 微信服务器推送消息回调地址。
+    /// 验证微信服务器回调请求的签名。
     pub const WECHAT_CALLBACK: &str = "/wechat/callback";
 
-    /// 微信服务器推送消息回调地址。
+    /// 主动刷新微信公众号的全局 Access Token。
     pub const WECHAT_RELOAD_ACCESS_TOKEN: &str = "/wechat/reload-access-token";
 
     /// 微信网页授权入口。

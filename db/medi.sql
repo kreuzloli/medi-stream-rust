@@ -231,3 +231,11 @@ ADD CONSTRAINT chk_live_room_is_top CHECK (is_top IN (0, 1)),
 ADD KEY idx_room_owner_admin (owner_admin_id),
 ADD KEY idx_room_department_disease (department_id, disease_id),
 ADD KEY idx_room_top_status_deleted (is_top, status, is_deleted);
+ALTER TABLE live_room
+    ADD COLUMN start_time DATETIME(3) NULL COMMENT '计划开播时间' AFTER is_top;
+ALTER TABLE live_room
+    ADD KEY idx_room_start_time_status_deleted (
+        start_time,
+        status,
+        is_deleted
+    );

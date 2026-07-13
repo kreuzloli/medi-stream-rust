@@ -52,6 +52,7 @@ pub struct LiveRoom {
     pub is_deleted: i8,
     pub created_at: Option<NaiveDateTime>,
     pub updated_at: Option<NaiveDateTime>,
+    pub start_time: Option<NaiveDateTime>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -76,6 +77,7 @@ pub struct SaveLiveRoomReq {
     pub disease_id: Option<u64>,
     pub is_top: Option<i32>,
     pub status: Option<i32>,
+    pub start_time: Option<NaiveDateTime>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
