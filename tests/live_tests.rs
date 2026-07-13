@@ -123,6 +123,7 @@ fn live_room_detail_can_contain_multiple_streams() {
         disease_id: Some(2),
         is_top: 1,
         status: 1,
+        start_time: None,
         is_deleted: 0,
         created_at: None,
         updated_at: None,
@@ -176,6 +177,7 @@ fn valid_room_req() -> SaveLiveRoomReq {
         disease_id: None,
         is_top: Some(0),
         status: Some(1),
+        start_time: None,
     }
 }
 
