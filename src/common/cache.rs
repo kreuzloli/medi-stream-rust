@@ -43,7 +43,9 @@ pub async fn cache_token(
     let key = token_cache_key(token);
     if let Some(redis) = state.redis.as_mut() {
         let json = serde_json::to_string(account)?;
-        let _: () = redis.set_ex(key, json, ACCOUNT_CACHE_SECONDS).await?;
+        let _: () = redis
+            .set_ex(key, json, state.jwt.token_ttl_seconds())
+            .await?;
     }
     Ok(())
 }
@@ -94,6 +96,19 @@ fn account_cache_key(id: u64) -> String {
 /// 生成 token 缓存 key。
 fn token_cache_key(token: &str) -> String {
     format!("{TOKEN_CACHE_PREFIX}{token}")
+}
+
+/// 校验 Token 仍存在于 Redis；缓存不可用时拒绝请求，避免注销失效机制被绕过。
+pub async fn require_cached_token(state: &AppState, token: &str) -> Result<(), AppError> {
+    let mut redis = state
+        .redis
+        .clone()
+        .ok_or_else(|| AppError::Internal("Token缓存不可用".to_string()))?;
+    if redis.exists(token_cache_key(token)).await? {
+        Ok(())
+    } else {
+        Err(AppError::Unauthorized("Token已失效".to_string()))
+    }
 }
 
 /// 处理登录相关的业务转换。

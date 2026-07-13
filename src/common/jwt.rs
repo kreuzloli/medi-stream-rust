@@ -1,7 +1,11 @@
 use crate::common::constants::auth::BEARER_PREFIX;
 use crate::config::Settings;
 use crate::error::AppError;
-use axum::http::HeaderMap;
+use axum::async_trait;
+use axum::extract::{FromRequestParts, Request, State};
+use axum::http::request::Parts;
+use axum::middleware::Next;
+use axum::response::Response;
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
@@ -11,7 +15,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 #[derive(Clone)]
 pub struct JwtKeys {
     issuer: String,
-    ttl_seconds: i64,
+    ttl_seconds: u64,
     // EncodingKey 用来签发 token，DecodingKey 用来校验 token。
     // 两者都由同一个 HS256 secret 派生，和 Java 的 NimbusJwtEncoder/Decoder 对应。
     encoding: EncodingKey,
@@ -32,11 +36,15 @@ pub struct Claims {
 impl JwtKeys {
     /// 根据应用配置创建 JWT 编码和解码密钥。
     pub fn from_settings(settings: &Settings) -> anyhow::Result<Self> {
+        anyhow::ensure!(
+            settings.jwt_ttl_seconds > 0,
+            "JWT_TTL_SECONDS must be greater than zero"
+        );
         // Java 配置里 secret 是 Base64；Rust 这里先解码成原始字节再创建 HMAC key。
         let secret = STANDARD.decode(&settings.jwt_secret_base64)?;
         Ok(Self {
             issuer: settings.jwt_issuer.clone(),
-            ttl_seconds: settings.jwt_ttl_seconds,
+            ttl_seconds: settings.jwt_ttl_seconds as u64,
             encoding: EncodingKey::from_secret(&secret),
             decoding: DecodingKey::from_secret(&secret),
         })
@@ -58,7 +66,7 @@ impl JwtKeys {
             iss: self.issuer.clone(),
             sub: subject.to_string(),
             iat: now,
-            exp: now + self.ttl_seconds,
+            exp: now + self.ttl_seconds as i64,
             roles,
             uid,
         };
@@ -77,28 +85,69 @@ impl JwtKeys {
         Ok(decode::<Claims>(token, &self.decoding, &validation)?.claims)
     }
 
-    /// 读取必填字段，缺失或空值时返回业务错误。
-    pub fn require_headers(&self, headers: &HeaderMap) -> Result<Claims, AppError> {
-        // 这里等价于 Java JwtAuthFilter 里读取 Authorization: Bearer xxx。
-        let auth = headers
-            .get(axum::http::header::AUTHORIZATION)
-            .and_then(|value| value.to_str().ok())
-            .ok_or_else(|| AppError::Unauthorized("Missing token".to_string()))?;
-        let token = auth
-            .strip_prefix(BEARER_PREFIX)
-            .ok_or_else(|| AppError::Unauthorized("Invalid token".to_string()))?;
-        self.decode_token(token)
+    /// 返回 Token 缓存应使用的有效期，确保 Redis 会话与 JWT 同时过期。
+    pub fn token_ttl_seconds(&self) -> u64 {
+        self.ttl_seconds
     }
+}
 
-    /// 从请求头提取 Bearer token 原文。
-    pub fn get_token_from_headers(&self, headers: &HeaderMap) -> Result<String, AppError> {
-        let auth = headers
-            .get(axum::http::header::AUTHORIZATION)
-            .and_then(|value| value.to_str().ok())
-            .ok_or_else(|| AppError::Unauthorized("Missing token".to_string()))?;
-        let token = auth
-            .strip_prefix(BEARER_PREFIX)
-            .ok_or_else(|| AppError::Unauthorized("Invalid token".to_string()))?;
-        Ok(token.to_string())
+#[derive(Debug, Clone)]
+pub struct CurrentUser(pub Claims);
+
+#[async_trait]
+impl<S> FromRequestParts<S> for CurrentUser
+where
+    S: Send + Sync,
+{
+    type Rejection = AppError;
+
+    /// 读取认证中间件写入的当前用户上下文。
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        parts
+            .extensions
+            .get::<CurrentUser>()
+            .cloned()
+            .ok_or_else(|| AppError::Unauthorized("Missing token".to_string()))
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct CurrentToken(pub String);
+
+#[async_trait]
+impl<S> FromRequestParts<S> for CurrentToken
+where
+    S: Send + Sync,
+{
+    type Rejection = AppError;
+
+    /// 读取认证中间件保存的 Token 原文，仅供当前会话注销使用。
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        parts
+            .extensions
+            .get::<CurrentToken>()
+            .cloned()
+            .ok_or_else(|| AppError::Unauthorized("Missing token".to_string()))
+    }
+}
+
+/// 统一校验 JWT 和 Redis Token 状态，并把当前用户上下文传给后续 Handler。
+pub async fn authenticate_user(
+    State(state): State<crate::state::AppState>,
+    mut request: Request,
+    next: Next,
+) -> Result<Response, AppError> {
+    let token = request
+        .headers()
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .ok_or_else(|| AppError::Unauthorized("Missing token".to_string()))?
+        .strip_prefix(BEARER_PREFIX)
+        .map(str::to_owned)
+        .ok_or_else(|| AppError::Unauthorized("Invalid token".to_string()))?;
+    let claims = state.jwt.decode_token(&token)?;
+    crate::common::cache::require_cached_token(&state, &token).await?;
+    request.extensions_mut().insert(CurrentUser(claims));
+    request.extensions_mut().insert(CurrentToken(token));
+    Ok(next.run(request).await)
 }

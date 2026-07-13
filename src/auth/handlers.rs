@@ -2,10 +2,10 @@ use crate::account::account_model::{CreateAccountReq, LoginType, RegisterResp};
 use crate::account::{account_repository, account_service};
 use crate::common::cache;
 use crate::common::constants::auth::ROLE_USER;
+use crate::common::jwt::{CurrentToken, CurrentUser};
 use crate::error::AppError;
 use crate::state::AppState;
 use axum::extract::State;
-use axum::http::HeaderMap;
 use axum::Json;
 use serde::Deserialize;
 use serde_json::json;
@@ -120,12 +120,7 @@ pub async fn login(
 }
 
 /// 返回当前 JWT 中的用户身份和角色信息。
-pub async fn me(
-    headers: HeaderMap,
-    State(state): State<AppState>,
-) -> Result<Json<serde_json::Value>, AppError> {
-    // HeaderMap 是当前请求的所有 header；require_headers 会校验 Bearer token。
-    let claims = state.jwt.require_headers(&headers)?;
+pub async fn me(CurrentUser(claims): CurrentUser) -> Result<Json<serde_json::Value>, AppError> {
     Ok(Json(json!({
         "ok": true,
         "username": claims.sub,
@@ -136,12 +131,11 @@ pub async fn me(
 
 /// 注销当前 token，并删除 token 缓存。
 pub async fn logout(
-    headers: HeaderMap,
+    CurrentUser(claims): CurrentUser,
+    CurrentToken(token): CurrentToken,
     State(mut state): State<AppState>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let claims = state.jwt.require_headers(&headers)?;
     let user_id = account_service::require_claim_user_id(&claims)?;
-    let token = state.jwt.get_token_from_headers(&headers)?;
     cache::delete_token_cache(&mut state, &token).await?;
     tracing::info!(user_id, "logout succeeded");
     Ok(Json(json!({ "ok": true })))

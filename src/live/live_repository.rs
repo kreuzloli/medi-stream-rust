@@ -173,7 +173,11 @@ pub async fn page_live_rooms(
          FROM live_room WHERE is_deleted = 0",
     );
     push_live_room_filters(&mut data_query, &query);
-    data_query.push(" ORDER BY is_top DESC, CASE WHEN start_time IS NULL THEN 1 ELSE 0 END, start_time ASC, id DESC ");
+    data_query.push(
+        " ORDER BY is_top DESC, \
+      CASE WHEN start_time IS NULL THEN 1 ELSE 0 END, \
+      start_time ASC, id DESC LIMIT ",
+    );
     data_query.push_bind(size);
     data_query.push(" OFFSET ");
     data_query.push_bind(offset);
