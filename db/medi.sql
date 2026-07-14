@@ -122,6 +122,8 @@ CREATE TABLE live_room (
     KEY idx_status_deleted (status, is_deleted)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '直播间';
 
+ALTER TABLE live_room DROP FOREIGN KEY fk_room_cover;
+
 CREATE TABLE live_room_stream (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     room_id BIGINT UNSIGNED NOT NULL,
@@ -140,6 +142,8 @@ CREATE TABLE live_room_stream (
     KEY idx_room (room_id),
     KEY idx_room_status (room_id, status, is_deleted)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '直播间多路流/视频源';
+
+ALTER TABLE live_room_stream DROP INDEX uk_room_stream_name;
 
 -- 管理后台与本服务共享数据库。以下为增量结构，本项目不实现管理员后台接口。
 CREATE TABLE administrator (
