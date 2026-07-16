@@ -243,3 +243,26 @@ ALTER TABLE live_room
         status,
         is_deleted
     );
+
+CREATE TABLE `tencent_live_config` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '配置ID',
+    `name` VARCHAR(100) NOT NULL COMMENT '配置名称，例如：腾讯云直播-生产环境',
+
+    `secret_id` VARCHAR(255) NOT NULL COMMENT '腾讯云 SecretId',
+    `secret_key` VARCHAR(512) NOT NULL COMMENT '腾讯云 SecretKey，建议加密存储',
+
+    `app_name` VARCHAR(100) NOT NULL COMMENT '直播应用名称',
+    `push_domain` VARCHAR(255) NOT NULL COMMENT '推流域名',
+    `play_domain` VARCHAR(255) NOT NULL COMMENT '播放域名',
+
+    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1启用，0停用',
+    `remark` VARCHAR(500) DEFAULT NULL COMMENT '备注',
+
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_tencent_live_config_name` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+COMMENT='腾讯云直播配置';
