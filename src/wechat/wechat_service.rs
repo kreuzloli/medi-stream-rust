@@ -1,13 +1,17 @@
 use crate::common::cache;
 use crate::common::constants::wechat::{
     WECHAT_ACCESS_TOKEN_PATH, WECHAT_API_BASE_URL, WECHAT_AUTHORIZATION_CODE,
-    WECHAT_CLIENT_CREDENTIAL, WECHAT_OAUTH_ACCESS_TOKEN_PATH, WECHAT_OAUTH_AUTHORIZE_URL,
-    WECHAT_OAUTH_CALLBACK_PATH, WECHAT_OAUTH_SCOPE_BASE, WECHAT_SERVICE_NAME,
-    WECHAT_SUCCESS_ERRCODE,
+    WECHAT_CLIENT_CREDENTIAL, WECHAT_GET_QR, WECHAT_OAUTH_ACCESS_TOKEN_PATH,
+    WECHAT_OAUTH_AUTHORIZE_URL, WECHAT_OAUTH_CALLBACK_PATH, WECHAT_OAUTH_SCOPE_BASE,
+    WECHAT_SERVICE_NAME, WECHAT_SUCCESS_ERRCODE,
 };
 use crate::error::AppError;
 use crate::state::AppState;
-use crate::wechat::wechat_model::{WechatAccessTokenResp, WechatOAuthAccessTokenResp};
+use crate::wechat::wechat_enum::WechatLoginStatusEnum;
+use crate::wechat::wechat_model::{
+    WechatAccessTokenResp, WechatLoginSession, WechatLoginStatusResponse,
+    WechatOAuthAccessTokenResp, WechatQrResponse,
+};
 use sha1::{Digest, Sha1};
 
 /// 给业务层使用：获取微信 access_token。
@@ -303,4 +307,40 @@ pub fn build_web_redirect_url(state: &AppState, redirect_path: &str, token: &str
         "build_web_redirect_url finished"
     );
     url
+}
+
+pub async fn create_qrcode(state: &AppState) -> Result<WechatQrResponse, AppError> {
+    let session_id = uuid::Uuid::new_v4().to_string();
+    let session = WechatLoginSession {
+        session_id: session_id.clone(),
+        status: WechatLoginStatusEnum::Waiting,
+        openid: None,
+        unionid: None,
+        account_id: None,
+        register_token: None,
+    };
+    redis::set_json(state, format!("wechat:login:{}", session_id), &session, 300);
+    let qr_url = format!(
+        WECHAT_QR_CONNECT_URL,
+        config.app_id,
+        encode(&config.redirect_uri),
+        session_id
+    );
+    Ok(WechatQrResponse { session_id, qr_url })
+}
+
+pub async fn get_status(
+    state: &AppState,
+    session_id: &str,
+) -> Result<WechatLoginStatusResponse, AppError> {
+    let session: WechatLoginSession =
+        redis::get_json(state, format!("wechat:login:{}", session_id))
+            .await?
+            .ok_or(AppError::BadRequest("二维码已失效".into()))?;
+
+    Ok(WechatLoginStatusResponse {
+        status: session.status,
+        token: None,
+        register_token: session.register_token,
+    })
 }

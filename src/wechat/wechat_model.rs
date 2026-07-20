@@ -1,4 +1,6 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+
+use crate::wechat::wechat_enum::WechatLoginStatusEnum;
 
 #[derive(Debug, Deserialize)]
 pub struct WechatAccessTokenResp {
@@ -75,4 +77,37 @@ pub struct WechatOAuthAccessTokenResp {
     /// 微信错误返回。
     pub errcode: Option<i64>,
     pub errmsg: Option<String>,
+}
+
+/// 获取WeChat二维码
+#[derive(Serialize)]
+pub struct WechatQrResponse {
+    pub session_id: String,
+    pub qr_url: String,
+}
+
+/// WeChat 登录状态
+#[derive(Serialize)]
+pub struct WechatLoginStatusResponse {
+    pub status: WechatLoginStatusEnum,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub register_token: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WechatLoginSession {
+    /// 前端轮询ID
+    pub session_id: String,
+    /// 状态枚举
+    pub status: WechatLoginStatusEnum,
+    /// 微信openid
+    pub openid: Option<String>,
+    /// 微信unionid
+    pub unionid: Option<String>,
+    /// 已登录账号
+    pub account_id: Option<u64>,
+    /// 未注册流程token
+    pub register_token: Option<String>,
 }

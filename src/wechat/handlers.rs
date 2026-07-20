@@ -1,8 +1,12 @@
 use crate::account::account_service;
 use crate::state::AppState;
-use crate::wechat::wechat_model::{WechatCheckSignatureQuery, WechatOAuthCallbackQuery};
+use crate::wechat::wechat_model::{
+    WechatCheckSignatureQuery, WechatLoginStatusResponse, WechatOAuthCallbackQuery,
+    WechatQrResponse,
+};
 use crate::wechat::wechat_service;
 use crate::{error::AppError, wechat::wechat_model::WechatOAuthAuthorizeQuery};
+use axum::extract::Path;
 use axum::response::Redirect;
 use axum::{
     extract::{Query, State},
@@ -121,4 +125,19 @@ pub async fn oauth_callback(
 
     let redirect_url = wechat_service::build_web_redirect_url(&state, &redirect_path, &token);
     Ok(Redirect::temporary(&redirect_url))
+}
+
+pub async fn create_qrcode(
+    State(state): State<AppState>,
+) -> Result<Json<WechatQrResponse>, AppError> {
+    let res = wechat_service::create_qrcode(&state).await?;
+    Ok(Json(res))
+}
+
+pub async fn get_status(
+    Path(session_id): Path<String>,
+    State(state): State<AppState>,
+) -> Result<Json<WechatLoginStatusResponse>, AppError> {
+    let result = wechat_service::get_status(&state, &session_id).await?;
+    Ok(Json(result))
 }

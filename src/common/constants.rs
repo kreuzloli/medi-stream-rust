@@ -230,6 +230,10 @@ pub mod wechat {
 
     /// 微信 OAuth 成功回跳路径。
     pub const WECHAT_OAUTH_CALLBACK_PATH: &str = "/wechat/oauth/callback";
+
+    /// 微信开放平台网页扫码登录二维码地址
+    pub const WECHAT_QR_CONNECT_URL: &str = "https://open.weixin.qq.com/connect/qrconnect\
+    ?appid={}&redirect_uri={}&response_type=code&scope=snsapi_login&state={}";
 }
 
 pub mod tencent_cloud {
@@ -302,4 +306,10 @@ pub mod route {
 
     /// 微信网页授权回调。
     pub const WECHAT_OAUTH_CALLBACK: &str = "/wechat/oauth/callback";
+
+    pub const AUTH_WECHAT_QRCODE: &str = "/wechat/qrcode";
+
+    pub const AUTH_WECHAT_STATUS: &str = "/wechat/status";
+
+    pub const AUTH_WECHAT_REGISTER: &str = "/wechat/register";
 }
