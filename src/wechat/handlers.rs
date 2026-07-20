@@ -110,7 +110,7 @@ pub async fn oauth_callback(
     Query(query): Query<WechatOAuthCallbackQuery>,
 ) -> Result<Redirect, AppError> {
     tracing::info!(
-        code = query.code,
+        code_len = query.code.len(),
         state = %query.state,
         "wechat oauth_callback started"
     );
@@ -127,6 +127,9 @@ pub async fn oauth_callback(
     Ok(Redirect::temporary(&redirect_url))
 }
 
+/// 创建微信扫码登录会话。
+///
+/// 返回的 qr_url 由 Web 端渲染为二维码，session_id 用于后续轮询登录状态。
 pub async fn create_qrcode(
     State(state): State<AppState>,
 ) -> Result<Json<WechatQrResponse>, AppError> {
@@ -134,6 +137,9 @@ pub async fn create_qrcode(
     Ok(Json(res))
 }
 
+/// 查询微信扫码登录会话状态。
+///
+/// 二维码过期属于正常业务状态，由 service 返回 EXPIRED。
 pub async fn get_status(
     Path(session_id): Path<String>,
     State(state): State<AppState>,

@@ -98,6 +98,12 @@ pub mod cache {
     /// 微信默认 expires_in 是 7200 秒。
     /// 这里少缓存一点，避免临界时间 token 已经过期。
     pub const WECHAT_ACCESS_TOKEN_CACHE_SECONDS: u64 = 7100;
+
+    /// 微信扫码登录会话 key 前缀，后面拼接前端持有的 session_id。
+    pub const WECHAT_LOGIN_SESSION_PREFIX: &str = "wechat:login:";
+
+    /// 微信扫码登录会话有效期，单位：秒。
+    pub const WECHAT_LOGIN_SESSION_SECONDS: u64 = 5 * 60;
 }
 
 pub mod auth {
@@ -231,9 +237,8 @@ pub mod wechat {
     /// 微信 OAuth 成功回跳路径。
     pub const WECHAT_OAUTH_CALLBACK_PATH: &str = "/wechat/oauth/callback";
 
-    /// 微信开放平台网页扫码登录二维码地址
-    pub const WECHAT_QR_CONNECT_URL: &str = "https://open.weixin.qq.com/connect/qrconnect\
-    ?appid={}&redirect_uri={}&response_type=code&scope=snsapi_login&state={}";
+    /// 微信公众号扫码登录使用的独立 OAuth 回调路径。
+    pub const WECHAT_QRCODE_CALLBACK_PATH: &str = "/wechat/qrcode/callback";
 }
 
 pub mod tencent_cloud {
@@ -307,9 +312,9 @@ pub mod route {
     /// 微信网页授权回调。
     pub const WECHAT_OAUTH_CALLBACK: &str = "/wechat/oauth/callback";
 
+    /// 创建微信公众号扫码登录会话并返回二维码内容地址。
     pub const AUTH_WECHAT_QRCODE: &str = "/wechat/qrcode";
 
-    pub const AUTH_WECHAT_STATUS: &str = "/wechat/status";
-
-    pub const AUTH_WECHAT_REGISTER: &str = "/wechat/register";
+    /// 查询指定微信扫码登录会话的当前状态。
+    pub const AUTH_WECHAT_STATUS: &str = "/wechat/status/:session_id";
 }

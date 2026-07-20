@@ -1,12 +1,13 @@
 use crate::common::cache;
 use crate::common::constants::wechat::{
     WECHAT_ACCESS_TOKEN_PATH, WECHAT_API_BASE_URL, WECHAT_AUTHORIZATION_CODE,
-    WECHAT_CLIENT_CREDENTIAL, WECHAT_GET_QR, WECHAT_OAUTH_ACCESS_TOKEN_PATH,
-    WECHAT_OAUTH_AUTHORIZE_URL, WECHAT_OAUTH_CALLBACK_PATH, WECHAT_OAUTH_SCOPE_BASE,
+    WECHAT_CLIENT_CREDENTIAL, WECHAT_OAUTH_ACCESS_TOKEN_PATH, WECHAT_OAUTH_AUTHORIZE_URL,
+    WECHAT_OAUTH_CALLBACK_PATH, WECHAT_OAUTH_SCOPE_BASE, WECHAT_QRCODE_CALLBACK_PATH,
     WECHAT_SERVICE_NAME, WECHAT_SUCCESS_ERRCODE,
 };
 use crate::error::AppError;
 use crate::state::AppState;
+use crate::wechat::wechat_cache;
 use crate::wechat::wechat_enum::WechatLoginStatusEnum;
 use crate::wechat::wechat_model::{
     WechatAccessTokenResp, WechatLoginSession, WechatLoginStatusResponse,
@@ -225,7 +226,7 @@ pub async fn fetch_wechat_oauth_access_token(
 
     tracing::info!(
         app_id = %app_id,
-        code = code,
+        code_len = code.len(),
         "fetch_wechat_oauth_access_token request started"
     );
     let url = format!(
@@ -309,8 +310,54 @@ pub fn build_web_redirect_url(state: &AppState, redirect_path: &str, token: &str
     url
 }
 
+/// 构建供 Web 页面渲染为二维码的微信公众号 OAuth 地址。
+///
+/// 这里只返回二维码承载的 OAuth 地址，不在服务端生成 PNG 或 Base64 图片。
+pub fn build_wechat_qrcode_authorize_url(
+    state: &AppState,
+    session_id: &str,
+) -> Result<String, AppError> {
+    let app_id = state
+        .wechat_app_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|e| !e.is_empty())
+        .ok_or_else(|| AppError::Internal("WECHAT_APP_ID 未配置".to_string()))?;
+    let callback_base_url = state
+        .wechat_oauth_callback_base_url
+        .as_deref()
+        .unwrap_or(&state.web_base_url)
+        .trim_end_matches('/');
+    let callback_url = format!("{callback_base_url}{WECHAT_QRCODE_CALLBACK_PATH}");
+    let encoded_callback = urlencoding::encode(&callback_url);
+    // 增加固定前缀，后续回调可以区分普通 H5 OAuth 和扫码登录。
+    let qr_state = format!("qr_login:{session_id}");
+    let encoded_state = urlencoding::encode(&qr_state);
+
+    let authorize_url = format!(
+        "{WECHAT_OAUTH_AUTHORIZE_URL}\
+    ?appid={app_id}\
+    &redirect_uri={encoded_callback}\
+    &response_type=code\
+    &scope={WECHAT_OAUTH_SCOPE_BASE}\
+    &state={encoded_state}\
+    #wechat_redirect"
+    );
+    tracing::debug!(
+        session_id = %session_id,
+        callback_url = %callback_url,
+        "wechat qrcode authorize url built"
+    );
+    Ok(authorize_url)
+}
+
+/// 创建微信扫码登录会话，并返回前端渲染二维码所需的 OAuth 地址。
+///
+/// 会话必须成功写入 Redis 后才能返回，避免前端拿到无法轮询的二维码。
 pub async fn create_qrcode(state: &AppState) -> Result<WechatQrResponse, AppError> {
     let session_id = uuid::Uuid::new_v4().to_string();
+    // 先校验微信配置并构造地址，避免配置错误时产生无用 Redis 会话。
+    let qr_url = build_wechat_qrcode_authorize_url(state, &session_id)?;
     let session = WechatLoginSession {
         session_id: session_id.clone(),
         status: WechatLoginStatusEnum::Waiting,
@@ -319,24 +366,40 @@ pub async fn create_qrcode(state: &AppState) -> Result<WechatQrResponse, AppErro
         account_id: None,
         register_token: None,
     };
-    redis::set_json(state, format!("wechat:login:{}", session_id), &session, 300);
-    let qr_url = format!(
-        WECHAT_QR_CONNECT_URL,
-        config.app_id,
-        encode(&config.redirect_uri),
-        session_id
+    wechat_cache::set_wechat_login_session(state, &session).await?;
+    tracing::info!(
+        session_id = %session_id,
+        status = ?WechatLoginStatusEnum::Waiting,
+        "wechat qrcode login session created"
     );
+
     Ok(WechatQrResponse { session_id, qr_url })
 }
 
+/// 查询微信扫码登录会话状态。
+///
+/// Redis key 不存在属于二维码正常过期，返回 EXPIRED，不转换成系统异常。
 pub async fn get_status(
     state: &AppState,
     session_id: &str,
 ) -> Result<WechatLoginStatusResponse, AppError> {
-    let session: WechatLoginSession =
-        redis::get_json(state, format!("wechat:login:{}", session_id))
-            .await?
-            .ok_or(AppError::BadRequest("二维码已失效".into()))?;
+    let Some(session) = wechat_cache::get_wechat_login_session(state, session_id).await? else {
+        tracing::debug!(
+            session_id = %session_id,
+            "wechat qrcode login session expired"
+        );
+        return Ok(WechatLoginStatusResponse {
+            status: WechatLoginStatusEnum::Expired,
+            token: None,
+            register_token: None,
+        });
+    };
+    tracing::debug!(
+        session_id = %session_id,
+        status = ?session.status,
+        has_register_token = session.register_token.is_some(),
+        "wechat qrcode login status queried"
+    );
 
     Ok(WechatLoginStatusResponse {
         status: session.status,
