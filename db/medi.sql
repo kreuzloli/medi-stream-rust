@@ -244,25 +244,32 @@ ALTER TABLE live_room
         is_deleted
     );
 
+
 CREATE TABLE `tencent_live_config` (
     `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '配置ID',
-    `name` VARCHAR(100) NOT NULL COMMENT '配置名称，例如：腾讯云直播-生产环境',
+    `name` VARCHAR(100) NOT NULL COMMENT '配置名称',
 
-    `secret_id` VARCHAR(255) NOT NULL COMMENT '腾讯云 SecretId',
-    `secret_key` VARCHAR(512) NOT NULL COMMENT '腾讯云 SecretKey，建议加密存储',
+    `secret_id` VARCHAR(255) NOT NULL COMMENT '腾讯云SecretId',
+    `secret_key` VARCHAR(512) NOT NULL COMMENT '腾讯云SecretKey',
 
     `app_name` VARCHAR(100) NOT NULL COMMENT '直播应用名称',
     `push_domain` VARCHAR(255) NOT NULL COMMENT '推流域名',
     `play_domain` VARCHAR(255) NOT NULL COMMENT '播放域名',
 
+    `push_key` VARCHAR(255) NOT NULL COMMENT '推流防盗链Key',
+    `play_key` VARCHAR(255) NOT NULL COMMENT '播放防盗链Key',
+    `default_ttl_seconds` BIGINT NOT NULL DEFAULT 86400 COMMENT 'URL默认有效期，秒',
+
     `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1启用，0停用',
     `remark` VARCHAR(500) DEFAULT NULL COMMENT '备注',
 
+    `is_deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除：0否，1是',
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
         ON UPDATE CURRENT_TIMESTAMP,
 
     PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_tencent_live_config_name` (`name`)
+    UNIQUE KEY `uk_tencent_live_config_name` (`name`, `is_deleted`),
+    KEY `idx_tencent_live_config_status` (`status`, `is_deleted`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
 COMMENT='腾讯云直播配置';
