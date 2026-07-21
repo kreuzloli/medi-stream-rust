@@ -104,6 +104,14 @@ pub mod cache {
 
     /// 微信扫码登录会话有效期，单位：秒。
     pub const WECHAT_LOGIN_SESSION_SECONDS: u64 = 5 * 60;
+
+    /// 微信扫码注册上下文缓存前缀。
+    ///
+    /// 完整 key：wechat:register:{register_token}
+    pub const WECHAT_REGISTER_CONTEXT_PREFIX: &str = "wechat:register:";
+
+    /// 微信扫码注册凭证有效期，给用户留出填写资料的时间。
+    pub const WECHAT_REGISTER_CONTEXT_SECONDS: u64 = 10 * 60;
 }
 
 pub mod auth {
@@ -315,6 +323,12 @@ pub mod route {
     /// 创建微信公众号扫码登录会话并返回二维码内容地址。
     pub const AUTH_WECHAT_QRCODE: &str = "/wechat/qrcode";
 
+    /// 微信扫码登录 OAuth 回调。
+    pub const AUTH_WECHAT_QRCODE_CALLBACK: &str = "/wechat/qrcode/callback";
+
     /// 查询指定微信扫码登录会话的当前状态。
     pub const AUTH_WECHAT_STATUS: &str = "/wechat/status/:session_id";
+
+    /// 使用微信扫码注册凭证完善资料并创建账号。
+    pub const AUTH_WECHAT_QRCODE_REGISTER: &str = "/wechat/qrcode/register";
 }

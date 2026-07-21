@@ -1,3 +1,5 @@
+use crate::account::account_model::RegisterResp;
+use crate::account::account_service;
 use crate::common::cache;
 use crate::common::constants::wechat::{
     WECHAT_ACCESS_TOKEN_PATH, WECHAT_API_BASE_URL, WECHAT_AUTHORIZATION_CODE,
@@ -11,7 +13,7 @@ use crate::wechat::wechat_cache;
 use crate::wechat::wechat_enum::WechatLoginStatusEnum;
 use crate::wechat::wechat_model::{
     WechatAccessTokenResp, WechatLoginSession, WechatLoginStatusResponse,
-    WechatOAuthAccessTokenResp, WechatQrResponse,
+    WechatOAuthAccessTokenResp, WechatQrResponse, WechatQrcodeRegisterReq, WechatRegisterContext,
 };
 use sha1::{Digest, Sha1};
 
@@ -246,8 +248,8 @@ pub async fn fetch_wechat_oauth_access_token(
 
     tracing::info!(
         app_id = %app_id,
-        open_id = resp.openid,
-        union_id = resp.unionid,
+        open_id = ?resp.openid,
+        union_id = ?resp.unionid,
         "fetch_wechat_oauth_access_token request finished"
     );
     Ok(resp)
@@ -281,8 +283,8 @@ pub fn parse_wechat_oauth_open_id(
             body: "wechat oauth response missing openid".to_string(),
         })?;
     tracing::info!(
-        open_id = open_id,
-        union_id = resp.unionid,
+        open_id = %open_id,
+        union_id = ?resp.unionid,
         "parse_wechat_oauth_open_id finished"
     );
     Ok((open_id, resp.unionid))
@@ -364,6 +366,7 @@ pub async fn create_qrcode(state: &AppState) -> Result<WechatQrResponse, AppErro
         openid: None,
         unionid: None,
         account_id: None,
+        token: None,
         register_token: None,
     };
     wechat_cache::set_wechat_login_session(state, &session).await?;
@@ -394,16 +397,217 @@ pub async fn get_status(
             register_token: None,
         });
     };
+
     tracing::debug!(
         session_id = %session_id,
         status = ?session.status,
+        has_token = session.token.is_some(),
         has_register_token = session.register_token.is_some(),
         "wechat qrcode login status queried"
     );
 
     Ok(WechatLoginStatusResponse {
         status: session.status,
-        token: None,
+        token: session.token,
         register_token: session.register_token,
     })
+}
+
+/// 从微信 OAuth state 中解析并校验扫码登录 session_id。
+///
+/// 扫码登录生成的 state 格式固定为：qr_login:{uuid}。
+/// UUID 校验可以避免使用任意字符串读取 Redis key。
+pub fn parse_qrcode_session_id(oauth_state: &str) -> Result<String, AppError> {
+    // Axum 通常已经完成 Query 参数解码，再解码一次可以兼容直接传入编码值的测试场景。
+    let decoded_state = urlencoding::decode(oauth_state)
+        .map_err(|err| AppError::BadRequest(format!("微信扫码登录 state 不合法: {err}")))?
+        .into_owned();
+    let session_id = decoded_state
+        .strip_prefix("qr_login:")
+        .map(str::trim)
+        .filter(|e| !e.is_empty())
+        .ok_or_else(|| AppError::BadRequest("微信扫码登录 state 不正确".to_string()))?;
+    uuid::Uuid::parse_str(session_id)
+        .map_err(|_| AppError::BadRequest("微信扫码登录 session_id 不正确".to_string()))?;
+    Ok(session_id.to_string())
+}
+
+/// 处理微信扫码登录 OAuth 回调。
+///
+/// 已有账号直接登录；新微信身份只生成 Redis 注册上下文，
+/// 不在回调阶段创建 user_info。
+pub async fn complete_qrcode_login(
+    state: &mut AppState,
+    code: &str,
+    oauth_state: &str,
+) -> Result<String, AppError> {
+    let session_id = parse_qrcode_session_id(oauth_state)?;
+    let Some(mut session) = wechat_cache::get_wechat_login_session(state, &session_id).await?
+    else {
+        tracing::warn!(
+            session_id = %session_id,
+            "wechat qrcode callback rejected because session expired"
+        );
+        return Err(AppError::BadRequest(
+            "二维码已过期，请返回电脑重新获取".to_string(),
+        ));
+    };
+    // 微信客户端可能重复打开回调地址，已经处理过的会话直接返回成功。
+    if matches!(
+        &session.status,
+        WechatLoginStatusEnum::Success | WechatLoginStatusEnum::RegisterRequired
+    ) {
+        tracing::info!(
+            session_id = %session_id,
+            status = ?session.status,
+            "wechat qrcode callback handled idempotently"
+        );
+        return Ok(session_id);
+    }
+    if !matches!(
+        &session.status,
+        WechatLoginStatusEnum::Waiting | WechatLoginStatusEnum::Scanned
+    ) {
+        tracing::warn!(
+            session_id = %session_id,
+            status = ?session.status,
+            "wechat qrcode callback rejected because session status is invalid"
+        );
+        return Err(AppError::BadRequest(
+            "当前二维码状态不允许继续登录".to_string(),
+        ));
+    }
+    tracing::info!(
+        session_id = %session_id,
+        code_len = code.len(),
+        "wechat qrcode callback processing started"
+    );
+    let oauth_response = fetch_wechat_oauth_access_token(state, code).await?;
+    let (open_id, union_id) = parse_wechat_oauth_open_id(oauth_response)?;
+    tracing::info!(
+        session_id = %session_id,
+        open_id = %open_id,
+        union_id = ?union_id,
+        "wechat qrcode identity resolved"
+    );
+    session.openid = Some(open_id.clone());
+    session.unionid = union_id.clone();
+    if let Some((user_id, token)) =
+        account_service::login_by_wechat_if_exists(state, &open_id).await?
+    {
+        session.status = WechatLoginStatusEnum::Success;
+        session.account_id = Some(user_id);
+        session.token = Some(token);
+        session.register_token = None;
+        wechat_cache::set_wechat_login_session(state, &session).await?;
+        tracing::info!(
+            session_id = %session_id,
+            user_id,
+            "wechat qrcode existing account login completed"
+        );
+        return Ok(session_id);
+    }
+    // 新微信身份只创建一次性注册凭证，不写 user_info。
+    let register_token = uuid::Uuid::new_v4().to_string();
+    let register_context = WechatRegisterContext {
+        session_id: session_id.clone(),
+        openid: open_id,
+        unionid: union_id,
+    };
+    // 先保存注册上下文，再把凭证返回给轮询端，避免前端拿到无效凭证。
+    wechat_cache::set_wechat_register_context(state, &register_token, &register_context).await?;
+    session.status = WechatLoginStatusEnum::RegisterRequired;
+    session.account_id = None;
+    session.token = None;
+    session.register_token = Some(register_token);
+    wechat_cache::set_wechat_login_session(state, &session).await?;
+    tracing::info!(
+        session_id = %session_id,
+        status = ?WechatLoginStatusEnum::RegisterRequired,
+        "wechat qrcode profile completion required"
+    );
+    Ok(session_id)
+}
+
+/// 使用扫码回调生成的一次性凭证完善资料并创建正式账号。
+///
+/// 注册成功前数据库中不存在该用户。
+pub async fn register_qrcode_account(
+    state: &mut AppState,
+    req: WechatQrcodeRegisterReq,
+) -> Result<RegisterResp, AppError> {
+    let register_token = req.register_token.trim().to_string();
+    // 使用 UUID 格式减少异常 key 和无意义 Redis 查询。
+    uuid::Uuid::parse_str(&register_token)
+        .map_err(|_| AppError::Unauthorized("微信注册凭证无效或已过期".to_string()))?;
+    let context = wechat_cache::get_wechat_register_context(state, &register_token)
+        .await?
+        .ok_or_else(|| AppError::Unauthorized("微信注册凭证无效或已过期".to_string()))?;
+    tracing::info!(
+        session_id = %context.session_id,
+        "wechat qrcode account registration started"
+    );
+    let account = account_service::create_wechat_account(
+        state,
+        req,
+        &context.openid,
+        context.unionid.as_deref(),
+    )
+    .await?;
+    let user_id = account
+        .profile
+        .id
+        .ok_or_else(|| AppError::Internal("registered account has no id".to_string()))?;
+    let token = account_service::issue_account_token(state, &account).await?;
+    match wechat_cache::get_wechat_login_session(state, &context.session_id).await {
+        Ok(Some(mut session)) => {
+            if session.register_token.as_deref() == Some(register_token.as_str()) {
+                session.status = WechatLoginStatusEnum::Success;
+                session.account_id = Some(user_id);
+                session.token = Some(token.clone());
+                session.register_token = None;
+                if let Err(err) = wechat_cache::set_wechat_login_session(state, &session).await {
+                    tracing::warn!(
+                        session_id = %context.session_id,
+                        error = %err,
+                        "wechat account created but login session update failed"
+                    );
+                }
+            } else {
+                // 会话已经被新的扫码流程替换时，不能用旧凭证覆盖其登录状态。
+                tracing::warn!(
+                    session_id = %context.session_id,
+                    "wechat account created but qrcode session credential no longer matches"
+                );
+            }
+        }
+        Ok(None) => {
+            tracing::info!(
+                session_id = %context.session_id,
+                "wechat account created after qrcode session expired"
+            );
+        }
+        Err(err) => {
+            tracing::warn!(
+                session_id = %context.session_id,
+                error = %err,
+                "wechat account created but login session query failed"
+            );
+        }
+    }
+    // 数据库和 JWT 均成功后才删除一次性注册凭证。
+    if let Err(err) = wechat_cache::delete_wechat_register_context(state, &register_token).await {
+        // 数据库唯一索引仍可阻止重复创建，这里不让 Redis 清理失败覆盖注册成功结果。
+        tracing::warn!(
+            session_id = %context.session_id,
+            error = %err,
+            "wechat registration succeeded but register context cleanup failed"
+        );
+    }
+    tracing::info!(
+        session_id = %context.session_id,
+        user_id,
+        "wechat qrcode account registration completed"
+    );
+    Ok(RegisterResp { token })
 }

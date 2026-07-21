@@ -12,6 +12,7 @@ use crate::common::jwt::Claims;
 use crate::common::validation::validate_enabled_or_disabled;
 use crate::error::AppError;
 use crate::state::AppState;
+use crate::wechat::wechat_model::WechatQrcodeRegisterReq;
 use argon2::password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
 use argon2::Argon2;
 use rand_core::OsRng;
@@ -414,8 +415,8 @@ pub async fn login_or_create_by_wechat(
     union_id: Option<&str>,
 ) -> Result<String, AppError> {
     tracing::info!(
-        open_id = open_id,
-        union_id = union_id,
+        open_id = %open_id,
+        union_id = ?union_id,
         "login_or_create_by_wechat started"
     );
     let existing_login = account_repository::find_wechat_login_for_auth(&state.db, open_id).await?;
@@ -437,14 +438,180 @@ pub async fn login_or_create_by_wechat(
         .profile
         .id
         .ok_or_else(|| AppError::Internal("login account has no user id".to_string()))?;
-    let token = state
-        .jwt
-        .generate_token(&account_token_subject(&account), vec![ROLE_USER.to_string()], Some(uid))?;
+    let token = state.jwt.generate_token(
+        &account_token_subject(&account),
+        vec![ROLE_USER.to_string()],
+        Some(uid),
+    )?;
     cache::cache_token(state, &account, &token).await?;
     tracing::info!(
         user_id = user_id,
-        token = token,
+        token_len = token.len(),
         "login_or_create_by_wechat finished"
     );
     Ok(token)
+}
+
+/// 校验并规范化微信扫码注册资料。
+///
+/// 姓名、昵称和身份类型始终必填；医疗从业者还必须选择医院和科室。
+/// mobile 和 headerId 只作为用户资料保存，不创建新的登录方式。
+pub fn validate_wechat_qrcode_register_req(
+    req: &mut WechatQrcodeRegisterReq,
+) -> Result<(), AppError> {
+    req.real_name = req.real_name.trim().to_string();
+    req.nickname = req.nickname.trim().to_string();
+    req.identity_type = req.identity_type.trim().to_ascii_uppercase();
+
+    req.mobile = req
+        .mobile
+        .take()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+
+    if req.real_name.is_empty() {
+        return Err(AppError::BadRequest("姓名不能为空".to_string()));
+    }
+    if req.real_name.chars().count() > 128 {
+        return Err(AppError::BadRequest("姓名不能超过128个字符".to_string()));
+    }
+
+    if req.nickname.is_empty() {
+        return Err(AppError::BadRequest("昵称不能为空".to_string()));
+    }
+    if req.nickname.chars().count() > 128 {
+        return Err(AppError::BadRequest("昵称不能超过128个字符".to_string()));
+    }
+
+    if let Some(mobile) = &req.mobile {
+        if mobile.chars().count() > 30 {
+            return Err(AppError::BadRequest("联系电话不能超过30个字符".to_string()));
+        }
+    }
+
+    if req.header_id.is_some_and(|value| value == 0) {
+        return Err(AppError::BadRequest("头像文件ID不正确".to_string()));
+    }
+
+    // 身份类型决定医院和科室是否为业务必填项。
+    match req.identity_type.as_str() {
+        IDENTITY_MEDICAL_WORKER => {
+            if req.hospital_id.is_none_or(|value| value == 0) {
+                return Err(AppError::BadRequest("医疗从业者必须选择医院".to_string()));
+            }
+            if req.dept_id.is_none_or(|value| value == 0) {
+                return Err(AppError::BadRequest("医疗从业者必须选择科室".to_string()));
+            }
+        }
+        IDENTITY_NON_MEDICAL_WORKER => {
+            if req.hospital_id.is_some_and(|value| value == 0) {
+                return Err(AppError::BadRequest("医院不正确".to_string()));
+            }
+            if req.dept_id.is_some_and(|value| value == 0) {
+                return Err(AppError::BadRequest("科室不正确".to_string()));
+            }
+        }
+        _ => {
+            return Err(AppError::BadRequest(
+                "身份类型只支持MEDICAL_WORKER或NON_MEDICAL_WORKER".to_string(),
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+/// 给已确认的账号签发并缓存 JWT。
+///
+/// 不在日志中打印 JWT。
+pub async fn issue_account_token(
+    state: &mut AppState,
+    account: &AccountDetail,
+) -> Result<String, AppError> {
+    let user_id = account
+        .profile
+        .id
+        .ok_or_else(|| AppError::Internal("account has no user id".to_string()))?;
+
+    let token = state.jwt.generate_token(
+        &account_token_subject(account),
+        vec![ROLE_USER.to_string()],
+        Some(user_id),
+    )?;
+
+    cache::cache_token(state, account, &token).await?;
+
+    tracing::info!(user_id, token_len = token.len(), "account token issued");
+
+    Ok(token)
+}
+
+/// 微信扫码时，如果账号已经存在则直接登录；不存在时返回 None。
+///
+/// 这个方法绝不会自动创建 user_info。
+pub async fn login_by_wechat_if_exists(
+    state: &mut AppState,
+    open_id: &str,
+) -> Result<Option<(u64, String)>, AppError> {
+    tracing::info!(
+        open_id = %open_id,
+        "login_by_wechat_if_exists started"
+    );
+    let Some(login) = account_repository::find_wechat_login_for_auth(&state.db, open_id).await?
+    else {
+        tracing::info!("wechat account not found");
+        return Ok(None);
+    };
+
+    account_repository::touch_last_login(&state.db, login.user_id, &login.login_identifier).await?;
+
+    let account = account_repository::find_account_detail_by_id(&state.db, login.user_id)
+        .await?
+        .ok_or_else(|| AppError::Unauthorized("微信登录账号不可用".to_string()))?;
+
+    let token = issue_account_token(state, &account).await?;
+
+    tracing::info!(
+        user_id = login.user_id,
+        "existing wechat account login succeeded"
+    );
+
+    Ok(Some((login.user_id, token)))
+}
+
+/// 使用服务端保存的微信注册上下文创建正式账号。
+///
+/// 资料校验通过后，Repository 会在同一事务内写入用户资料和微信登录绑定。
+pub async fn create_wechat_account(
+    state: &mut AppState,
+    mut req: WechatQrcodeRegisterReq,
+    open_id: &str,
+    union_id: Option<&str>,
+) -> Result<AccountDetail, AppError> {
+    tracing::info!(
+        open_id = %open_id,
+        union_id = ?union_id,
+        real_name = %req.real_name,
+        nickname = %req.nickname,
+        identity_type = %req.identity_type,
+        hospital_id = ?req.hospital_id,
+        dept_id = ?req.dept_id,
+        mobile = ?req.mobile,
+        header_id = ?req.header_id,
+        "create_wechat_account started"
+    );
+    validate_wechat_qrcode_register_req(&mut req)?;
+
+    let user_id =
+        account_repository::insert_wechat_account(&state.db, &req, open_id, union_id).await?;
+
+    let account = account_repository::find_account_detail_by_id(&state.db, user_id)
+        .await?
+        .ok_or_else(|| AppError::Internal("微信账号创建成功但无法读取用户资料".to_string()))?;
+
+    cache::cache_account(state, &account).await?;
+
+    tracing::info!(user_id, "wechat account created after profile completion");
+
+    Ok(account)
 }

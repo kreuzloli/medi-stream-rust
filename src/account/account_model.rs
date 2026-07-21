@@ -62,7 +62,6 @@ impl<'de> Deserialize<'de> for LoginType {
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct UserProfile {
-    // 用户资料只保存实名、医院、科室等业务信息，不保存任何登录凭证。
     pub id: Option<u64>,
     pub user_code: Option<String>,
     pub real_name: String,
@@ -72,6 +71,13 @@ pub struct UserProfile {
     pub identity_type: Option<String>,
     pub doctor_cert_no: Option<String>,
     pub id_card_no: Option<String>,
+
+    /// 用户联系电话，仅作为资料字段，不自动创建 PHONE 登录方式。
+    pub mobile: Option<String>,
+
+    /// 用户头像对应的 file_object.id。
+    pub header_id: Option<u64>,
+
     pub status: i32,
     pub version: i32,
     pub is_deleted: i32,
@@ -116,6 +122,8 @@ pub struct CreateAccountReq {
     pub user_code: Option<String>,
     pub real_name: String,
     pub nickname: Option<String>,
+    pub mobile: Option<String>,
+    pub header_id: Option<u64>,
     pub hospital_id: Option<u64>,
     pub dept_id: Option<u64>,
     pub identity_type: Option<String>,
@@ -141,6 +149,8 @@ pub struct UpdateUserProfileReq {
     pub user_code: Option<String>,
     pub real_name: String,
     pub nickname: Option<String>,
+    pub mobile: Option<String>,
+    pub header_id: Option<u64>,
     pub hospital_id: Option<u64>,
     pub dept_id: Option<u64>,
     pub identity_type: Option<String>,

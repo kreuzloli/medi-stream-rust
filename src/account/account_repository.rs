@@ -4,6 +4,7 @@ use crate::account::account_model::{
 };
 use crate::common::Page;
 use crate::error::AppError;
+use crate::wechat::wechat_model::WechatQrcodeRegisterReq;
 use sqlx::{MySql, MySqlPool, QueryBuilder, Row};
 use uuid::Uuid;
 
@@ -39,15 +40,17 @@ pub async fn insert_account_with_logins(
     let user_result = sqlx::query(
         r#"
         INSERT INTO user_info (
-            user_code, real_name, nickname, hospital_id, dept_id, identity_type,
+            user_code, real_name, nickname, mobile, header_id, hospital_id, dept_id, identity_type,
             doctor_cert_no, id_card_no, status, version, is_deleted
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0)
         "#,
     )
     .bind(user_code)
     .bind(&req.real_name)
     .bind(&req.nickname)
+    .bind(&req.mobile)
+    .bind(req.header_id)
     .bind(req.hospital_id)
     .bind(req.dept_id)
     .bind(&req.identity_type)
@@ -150,7 +153,7 @@ pub async fn find_user_profile_by_id(
     Ok(sqlx::query_as::<_, UserProfile>(
         r#"
         SELECT
-            id, user_code, real_name, nickname, hospital_id, dept_id, identity_type,
+            id, user_code, real_name, nickname, mobile, header_id, hospital_id, dept_id, identity_type,
             doctor_cert_no, id_card_no, status, version, is_deleted, created_at, updated_at
         FROM user_info
         WHERE id = ? AND is_deleted = 0
@@ -212,7 +215,7 @@ pub async fn update_user_profile(
         r#"
         UPDATE user_info
         SET
-            user_code = ?, real_name = ?, nickname = ?, hospital_id = ?, dept_id = ?,
+            user_code = ?, real_name = ?, nickname = ?, mobile = ?, header_id = ?, hospital_id = ?, dept_id = ?,
             identity_type = ?, doctor_cert_no = ?, id_card_no = ?,
             status = COALESCE(?, status), version = COALESCE(?, version)
         WHERE id = ? AND is_deleted = 0
@@ -221,6 +224,8 @@ pub async fn update_user_profile(
     .bind(&req.user_code)
     .bind(&req.real_name)
     .bind(&req.nickname)
+    .bind(&req.mobile)
+    .bind(req.header_id)
     .bind(req.hospital_id)
     .bind(req.dept_id)
     .bind(&req.identity_type)
@@ -287,7 +292,7 @@ pub async fn page_user_profiles(
     let offset = (page - 1) * size;
 
     let mut data_query = QueryBuilder::<MySql>::new(
-        "SELECT id, user_code, real_name, nickname, hospital_id, dept_id, identity_type, \
+        "SELECT id, user_code, real_name, nickname, mobile, header_id, hospital_id, dept_id, identity_type, \
          doctor_cert_no, id_card_no, status, version, is_deleted, created_at, updated_at \
          FROM user_info WHERE is_deleted = 0",
     );
@@ -441,7 +446,10 @@ pub async fn find_wechat_login_for_auth(
     db: &MySqlPool,
     open_id: &str,
 ) -> Result<Option<AuthLoginAccount>, AppError> {
-    tracing::info!(open_id = open_id, "find_wechat_login_for_auth started");
+    tracing::info!(
+        open_id = %open_id,
+        "find_wechat_login_for_auth started"
+    );
     let login = find_login_for_auth(db, LoginType::Wechat, open_id).await?;
     tracing::info!(
         found = login.is_some(),
@@ -460,7 +468,7 @@ pub async fn insert_wechat_user(
     union_id: Option<&str>,
 ) -> Result<u64, AppError> {
     tracing::info!(
-        open_id = open_id,
+        open_id = %open_id,
         union_id = ?union_id,
         "insert_wechat_user started"
     );
@@ -469,12 +477,12 @@ pub async fn insert_wechat_user(
     let user_result = sqlx::query(
         r#"
         INSERT INTO user_info (
-            user_code, real_name, nickname,
+            user_code, real_name, nickname, mobile, header_id,
             hospital_id, dept_id, identity_type,
             doctor_cert_no, id_card_no,
             status, version, is_deleted
         )
-        VALUES (?, ?, ?, NULL, NULL, NULL, NULL, NULL, 1, 0, 0)
+        VALUES (?, ?, ?, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, 0, 0)
         "#,
     )
     .bind(user_code)
@@ -502,5 +510,97 @@ pub async fn insert_wechat_user(
     .await?;
     tx.commit().await?;
     tracing::info!(user_id = user_id, "insert_wechat_user finished");
+    Ok(user_id)
+}
+/// 使用经过服务端微信 OAuth 验证的身份创建用户。
+///
+/// user_info 和 WECHAT 登录绑定必须在同一个事务中写入，
+/// 任意一步失败都会回滚，不产生半成品账号。
+pub async fn insert_wechat_account(
+    db: &MySqlPool,
+    req: &WechatQrcodeRegisterReq,
+    open_id: &str,
+    union_id: Option<&str>,
+) -> Result<u64, AppError> {
+    tracing::info!(
+        open_id = %open_id,
+        union_id = ?union_id,
+        identity_type = %req.identity_type,
+        has_hospital = req.hospital_id.is_some(),
+        has_department = req.dept_id.is_some(),
+        "wechat account transaction started"
+    );
+    let mut tx = db.begin().await?;
+    // 在事务内再次检查，避免已经注册的微信身份重复创建账号。
+    let exists = sqlx::query(
+        r#"
+            SELECT id
+            FROM user_login_account
+            WHERE login_type = ?
+              AND login_identifier = ?
+            LIMIT 1
+            "#,
+    )
+    .bind(LoginType::Wechat.as_str())
+    .bind(open_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .is_some();
+    if exists {
+        tracing::warn!("wechat account transaction rejected because binding already exists");
+        return Err(AppError::BadRequest(
+            "该微信账号已经注册，请重新扫码登录".to_string(),
+        ));
+    }
+
+    let user_code = Uuid::new_v4().simple().to_string();
+    let user_result = sqlx::query(
+        r#"
+            INSERT INTO user_info (
+                user_code, real_name, nickname,
+                hospital_id, dept_id, identity_type,
+                doctor_cert_no, id_card_no,
+                mobile, header_id,
+                status, version, is_deleted
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, 0)
+            "#,
+    )
+    .bind(user_code)
+    .bind(&req.real_name)
+    .bind(&req.nickname)
+    .bind(req.hospital_id)
+    .bind(req.dept_id)
+    .bind(&req.identity_type)
+    .bind(&req.doctor_cert_no)
+    .bind(&req.id_card_no)
+    .bind(&req.mobile)
+    .bind(req.header_id)
+    .execute(&mut *tx)
+    .await?;
+
+    let user_id = user_result.last_insert_id();
+
+    sqlx::query(
+        r#"
+            INSERT INTO user_login_account (
+                user_id, login_type, login_identifier,
+                password_hash, third_party_union_id,
+                is_verified, last_login_at,
+                status, is_deleted
+            )
+            VALUES (?, ?, ?, NULL, ?, 1, NOW(), 1, 0)
+            "#,
+    )
+    .bind(user_id)
+    .bind(LoginType::Wechat.as_str())
+    .bind(open_id)
+    .bind(union_id)
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+
+    tracing::info!(user_id, "wechat account transaction committed");
     Ok(user_id)
 }

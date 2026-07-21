@@ -273,3 +273,8 @@ CREATE TABLE `tencent_live_config` (
     KEY `idx_tencent_live_config_status` (`status`, `is_deleted`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
 COMMENT='腾讯云直播配置';
+
+
+ALTER TABLE `user_info`
+ADD COLUMN `mobile` VARCHAR(30) NULL COMMENT '用户联系电话',
+ADD COLUMN `header_id` BIGINT UNSIGNED NULL COMMENT '用户头像文件ID';
