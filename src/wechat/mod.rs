@@ -5,12 +5,12 @@ pub mod wechat_model;
 pub mod wechat_service;
 
 use crate::common::constants::route::{
-    self, AUTH_WECHAT_QRCODE, AUTH_WECHAT_QRCODE_CALLBACK, AUTH_WECHAT_QRCODE_REGISTER,
-    AUTH_WECHAT_STATUS,
+    self, AUTH_WECHAT_QRCODE, AUTH_WECHAT_QRCODE_CALLBACK, AUTH_WECHAT_QRCODE_FILE,
+    AUTH_WECHAT_QRCODE_REGISTER, AUTH_WECHAT_STATUS,
 };
 use crate::state::AppState;
 use axum::routing::{get, post};
-use axum::Router;
+use axum::{extract::DefaultBodyLimit, Router};
 
 /// 注册微信服务器回调、OAuth 和扫码登录接口。
 pub fn routes() -> Router<AppState> {
@@ -28,5 +28,9 @@ pub fn routes() -> Router<AppState> {
         .route(AUTH_WECHAT_QRCODE, get(handlers::create_qrcode))
         .route(AUTH_WECHAT_QRCODE_CALLBACK, get(handlers::qrcode_callback))
         .route(AUTH_WECHAT_QRCODE_REGISTER, post(handlers::qrcode_register))
+        .route(
+            AUTH_WECHAT_QRCODE_FILE,
+            post(handlers::qrcode_upload_file).layer(DefaultBodyLimit::disable()),
+        )
         .route(AUTH_WECHAT_STATUS, get(handlers::get_status))
 }

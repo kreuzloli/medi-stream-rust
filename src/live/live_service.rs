@@ -4,10 +4,13 @@ use crate::common::Page;
 use crate::error::AppError;
 use crate::live::live_model::{
     FileObject, FileObjectPageQuery, LiveRoom, LiveRoomDetail, LiveRoomPageQuery, LiveRoomStream,
-    LiveRoomStreamPageQuery, SaveFileObjectReq, SaveLiveRoomReq, SaveLiveRoomStreamReq,
+    LiveRoomStreamPageQuery, LiveWatchResp, SaveFileObjectReq, SaveLiveRoomReq,
+    SaveLiveRoomStreamReq,
 };
 use crate::live::live_repository;
 use crate::state::AppState;
+use crate::tencent_cloud::tencent_live_service;
+use chrono::Utc;
 
 const ROOM_STATUS_BANNED: i32 = 2;
 
@@ -212,6 +215,38 @@ pub async fn get_live_room_detail(
     );
 
     Ok(Some(build_live_room_detail(room, streams)))
+}
+
+/// 按房间编码装配登录用户观看直播所需的房间、默认流和临时播放地址。
+pub async fn get_live_watch(state: &AppState, room_code: &str) -> Result<LiveWatchResp, AppError> {
+    let room_code = room_code.trim();
+    if room_code.is_empty() {
+        return Err(AppError::BadRequest("直播房间号不能为空".to_string()));
+    }
+    let room = live_repository::find_active_live_room_by_code(&state.db, room_code)
+        .await?
+        .ok_or_else(|| AppError::NotFound("直播房间不存在或未启用".to_string()))?;
+    let stream = live_repository::list_active_live_room_streams(&state.db, room.id)
+        .await?
+        .into_iter()
+        .next()
+        .ok_or_else(|| AppError::NotFound("直播房间暂时没有可播放的直播流".to_string()))?;
+    let urls = tencent_live_service::generate_live_urls(
+        state,
+        &stream.stream_name,
+        None,
+        None,
+        Utc::now().timestamp(),
+    )?;
+    tracing::info!(
+        room_id = room.id,
+        room_code = %room.room_code,
+        stream_id = stream.id,
+        stream_code = %stream.stream_code,
+        stream_name = %stream.stream_name,
+        "live watch payload generated"
+    );
+    Ok(LiveWatchResp { room, stream, urls })
 }
 
 /// 更新业务数据，并在目标不存在时返回 NotFound。

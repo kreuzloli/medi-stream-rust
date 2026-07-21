@@ -5,7 +5,7 @@ use axum::{Extension, Router};
 use medi_stream_rust::common::constants::cache::ACCOUNT_CACHE_SECONDS;
 use medi_stream_rust::common::jwt::{Claims, CurrentToken, CurrentUser};
 use medi_stream_rust::common::{HttpClient, JwtKeys};
-use medi_stream_rust::config::Settings;
+use medi_stream_rust::config::{FileStorageConfig, Settings};
 use medi_stream_rust::routes::router;
 use medi_stream_rust::state::AppState;
 use sqlx::mysql::MySqlPoolOptions;
@@ -21,6 +21,11 @@ fn test_state() -> AppState {
         jwt_ttl_seconds: 3600,
         mysql_max_connections: 1,
         http_timeout_seconds: 1,
+        file_storage: FileStorageConfig {
+            root_dir: std::path::PathBuf::from("/tmp/medi-stream-test-uploads"),
+            public_prefix: "/uploads".to_string(),
+            max_size_bytes: 100 * 1024 * 1024,
+        },
         tencent_live_credential: None,
         tencent_live_url_config: None,
         tencent_live_license_config: None,
@@ -41,6 +46,7 @@ fn test_state() -> AppState {
         jwt: JwtKeys::from_settings(&settings).expect("test JWT settings should be valid"),
         http: HttpClient::new(settings.http_timeout_seconds)
             .expect("test HTTP client should build"),
+        file_storage: settings.file_storage.clone(),
         tencent_live_credential: None,
         tencent_live_url_config: None,
         tencent_live_license_config: None,
@@ -201,6 +207,31 @@ async fn production_router_keeps_public_and_protected_routes_separate() {
         .await
         .unwrap();
     assert_eq!(missing_unbind_token.status(), StatusCode::UNAUTHORIZED);
+
+    let missing_live_watch_token = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/live/watch/ROOM001")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(missing_live_watch_token.status(), StatusCode::UNAUTHORIZED);
+
+    let missing_file_upload_token = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method(Method::POST)
+                .uri("/files/upload")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(missing_file_upload_token.status(), StatusCode::UNAUTHORIZED);
 
     let public_wechat_callback = app
         .oneshot(

@@ -492,6 +492,15 @@ pub fn validate_wechat_qrcode_register_req(
     if req.header_id.is_some_and(|value| value == 0) {
         return Err(AppError::BadRequest("头像文件ID不正确".to_string()));
     }
+    for (file_id, label) in [
+        (req.doctor_cert_file_id, "执业资格证文件ID不正确"),
+        (req.id_card_front_file_id, "身份证人像面文件ID不正确"),
+        (req.id_card_back_file_id, "身份证国徽面文件ID不正确"),
+    ] {
+        if file_id == Some(0) {
+            return Err(AppError::BadRequest(label.to_string()));
+        }
+    }
 
     // 身份类型决定医院和科室是否为业务必填项。
     match req.identity_type.as_str() {
@@ -598,6 +607,9 @@ pub async fn create_wechat_account(
         dept_id = ?req.dept_id,
         mobile = ?req.mobile,
         header_id = ?req.header_id,
+        doctor_cert_file_id = ?req.doctor_cert_file_id,
+        id_card_front_file_id = ?req.id_card_front_file_id,
+        id_card_back_file_id = ?req.id_card_back_file_id,
         "create_wechat_account started"
     );
     validate_wechat_qrcode_register_req(&mut req)?;

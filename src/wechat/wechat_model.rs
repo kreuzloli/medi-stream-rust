@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 use crate::wechat::wechat_enum::WechatLoginStatusEnum;
 
@@ -140,6 +141,51 @@ pub struct WechatQrcodeRegisterReq {
     pub mobile: Option<String>,
     /// 头像文件 ID。
     pub header_id: Option<u64>,
+    /// 医疗从业资格证文件 ID。
+    pub doctor_cert_file_id: Option<u64>,
+    /// 身份证人像面文件 ID。
+    pub id_card_front_file_id: Option<u64>,
+    /// 身份证国徽面文件 ID。
+    pub id_card_back_file_id: Option<u64>,
+}
+
+/// 扫码注册阶段的文件用途。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WechatRegisterFileKind {
+    Avatar,
+    DoctorCert,
+    IdCardFront,
+    IdCardBack,
+}
+
+impl WechatRegisterFileKind {
+    pub fn parse(value: &str) -> Option<Self> {
+        match value.trim() {
+            "avatar" => Some(Self::Avatar),
+            "doctor_cert" => Some(Self::DoctorCert),
+            "id_card_front" => Some(Self::IdCardFront),
+            "id_card_back" => Some(Self::IdCardBack),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Avatar => "avatar",
+            Self::DoctorCert => "doctor_cert",
+            Self::IdCardFront => "id_card_front",
+            Self::IdCardBack => "id_card_back",
+        }
+    }
+}
+
+/// 扫码注册文件上传成功后的响应。
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WechatRegisterFileResp {
+    pub file_id: u64,
+    pub file_name: String,
+    pub kind: String,
 }
 
 /// 微信扫码注册上下文。
@@ -153,4 +199,7 @@ pub struct WechatRegisterContext {
     pub openid: String,
     /// 微信 OAuth 返回的 unionId，公众号未绑定开放平台时可能为空。
     pub unionid: Option<String>,
+    /// 已通过当前注册凭证上传的文件，防止提交其他用户的 file_object.id。
+    #[serde(default)]
+    pub uploaded_files: BTreeMap<String, u64>,
 }

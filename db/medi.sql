@@ -278,3 +278,8 @@ COMMENT='腾讯云直播配置';
 ALTER TABLE `user_info`
 ADD COLUMN `mobile` VARCHAR(30) NULL COMMENT '用户联系电话',
 ADD COLUMN `header_id` BIGINT UNSIGNED NULL COMMENT '用户头像文件ID';
+
+ALTER TABLE `user_info`
+ADD COLUMN `doctor_cert_file_id` BIGINT UNSIGNED NULL COMMENT '医疗从业资格证文件ID',
+ADD COLUMN `id_card_front_file_id` BIGINT UNSIGNED NULL COMMENT '身份证人像面文件ID',
+ADD COLUMN `id_card_back_file_id` BIGINT UNSIGNED NULL COMMENT '身份证国徽面文件ID';

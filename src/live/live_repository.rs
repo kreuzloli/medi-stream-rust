@@ -117,6 +117,26 @@ pub async fn find_live_room_by_id(db: &MySqlPool, id: u64) -> Result<Option<Live
     .await?)
 }
 
+/// 按公开房间编码查询启用中的直播间。
+pub async fn find_active_live_room_by_code(
+    db: &MySqlPool,
+    room_code: &str,
+) -> Result<Option<LiveRoom>, AppError> {
+    Ok(sqlx::query_as::<_, LiveRoom>(
+        r#"
+        SELECT
+            id, owner_user_id, owner_admin_id, room_code, title, description, cover_file_id,
+            department_id, disease_id, is_top, start_time, status, is_deleted, created_at, updated_at
+        FROM live_room
+        WHERE room_code = ? AND status = 1 AND is_deleted = 0
+        LIMIT 1
+        "#,
+    )
+    .bind(room_code)
+    .fetch_optional(db)
+    .await?)
+}
+
 /// 更新业务数据，并在目标不存在时返回 NotFound。
 pub async fn update_live_room(
     db: &MySqlPool,
@@ -254,6 +274,26 @@ pub async fn list_live_room_streams_by_room_id(
         FROM live_room_stream
         WHERE room_id = ? AND is_deleted = 0
         ORDER BY sort_no ASC, id ASC
+        "#,
+    )
+    .bind(room_id)
+    .fetch_all(db)
+    .await?)
+}
+
+/// 查询房间可播放的流，默认流优先，其余按后台排序顺序兜底。
+pub async fn list_active_live_room_streams(
+    db: &MySqlPool,
+    room_id: u64,
+) -> Result<Vec<LiveRoomStream>, AppError> {
+    Ok(sqlx::query_as::<_, LiveRoomStream>(
+        r#"
+        SELECT
+            id, room_id, stream_code, stream_name, title, sort_no, is_default,
+            status, is_deleted, created_at, updated_at
+        FROM live_room_stream
+        WHERE room_id = ? AND status = 1 AND is_deleted = 0
+        ORDER BY is_default DESC, sort_no ASC, id ASC
         "#,
     )
     .bind(room_id)

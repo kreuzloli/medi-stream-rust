@@ -21,6 +21,8 @@ pub enum AppError {
     Jwt(#[from] jsonwebtoken::errors::Error),
     #[error(transparent)]
     Json(#[from] serde_json::Error),
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
     // reqwest 自身错误：比如网络断了、DNS 失败、响应 JSON 解析失败等。
     #[error(transparent)]
     Http(#[from] reqwest::Error),
@@ -56,6 +58,7 @@ impl AppError {
             AppError::Database(_)
             | AppError::Redis(_)
             | AppError::Json(_)
+            | AppError::Io(_)
             | AppError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }

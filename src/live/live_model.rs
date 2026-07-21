@@ -1,3 +1,4 @@
+use crate::tencent_cloud::tencent_live_model::LiveUrlsResp;
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
@@ -62,6 +63,15 @@ pub struct LiveRoomDetail {
     #[serde(flatten)]
     pub room: LiveRoom,
     pub streams: Vec<LiveRoomStream>,
+}
+
+/// 登录用户进入直播间时所需的完整播放信息。
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LiveWatchResp {
+    pub room: LiveRoom,
+    pub stream: LiveRoomStream,
+    pub urls: LiveUrlsResp,
 }
 
 #[derive(Debug, Clone, Deserialize)]

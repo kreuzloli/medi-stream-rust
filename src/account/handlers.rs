@@ -5,8 +5,11 @@ use crate::account::{account_repository, account_service};
 use crate::common::cache;
 use crate::common::jwt::CurrentUser;
 use crate::error::AppError;
+use crate::file::{file_service, file_storage};
 use crate::state::AppState;
 use axum::extract::{Path, State};
+use axum::http::{header, HeaderValue};
+use axum::response::{IntoResponse, Response};
 use axum::Json;
 
 /// 查询当前 JWT 用户的账号详情，优先读取缓存。
@@ -75,4 +78,43 @@ pub async fn unbind_account(
     let deleted = account_service::unbind_account(&mut state, user_id, login_id).await?;
     tracing::info!(user_id, login_id, deleted, "unbind_account finished");
     Ok(Json(deleted))
+}
+
+/// 返回当前用户已经绑定的头像或证件内容。
+///
+/// 文件读取和账号鉴权使用同一条受保护路由，避免证件 URL 公开可猜测。
+pub async fn get_user_file_content(
+    CurrentUser(claims): CurrentUser,
+    State(state): State<AppState>,
+    Path(file_id): Path<u64>,
+) -> Result<Response, AppError> {
+    let user_id = account_service::require_claim_user_id(&claims)?;
+    if !account_repository::is_user_profile_file(&state.db, user_id, file_id).await? {
+        tracing::warn!(user_id, file_id, "user profile file access rejected");
+        return Err(AppError::NotFound("文件不存在".to_string()));
+    }
+    let file = file_service::get_file_object(&state, file_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("文件不存在".to_string()))?;
+    let content = file_storage::read_public_file(&file.file_url, &state.file_storage).await?;
+    let content_type = file
+        .mime_type
+        .as_deref()
+        .unwrap_or("application/octet-stream");
+    let file_size = content.len();
+    let mut response = content.into_response();
+    response.headers_mut().insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_str(content_type)
+            .map_err(|_| AppError::Internal("文件类型不正确".to_string()))?,
+    );
+    tracing::info!(
+        user_id,
+        file_id,
+        file_name = %file.file_name,
+        content_type,
+        file_size,
+        "user profile file returned"
+    );
+    Ok(response)
 }

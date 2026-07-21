@@ -40,10 +40,11 @@ pub async fn insert_account_with_logins(
     let user_result = sqlx::query(
         r#"
         INSERT INTO user_info (
-            user_code, real_name, nickname, mobile, header_id, hospital_id, dept_id, identity_type,
-            doctor_cert_no, id_card_no, status, version, is_deleted
+            user_code, real_name, nickname, mobile, header_id,
+            doctor_cert_file_id, id_card_front_file_id, id_card_back_file_id,
+            hospital_id, dept_id, identity_type, doctor_cert_no, id_card_no, status, version, is_deleted
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0)
         "#,
     )
     .bind(user_code)
@@ -51,6 +52,9 @@ pub async fn insert_account_with_logins(
     .bind(&req.nickname)
     .bind(&req.mobile)
     .bind(req.header_id)
+    .bind(req.doctor_cert_file_id)
+    .bind(req.id_card_front_file_id)
+    .bind(req.id_card_back_file_id)
     .bind(req.hospital_id)
     .bind(req.dept_id)
     .bind(&req.identity_type)
@@ -153,8 +157,10 @@ pub async fn find_user_profile_by_id(
     Ok(sqlx::query_as::<_, UserProfile>(
         r#"
         SELECT
-            id, user_code, real_name, nickname, mobile, header_id, hospital_id, dept_id, identity_type,
-            doctor_cert_no, id_card_no, status, version, is_deleted, created_at, updated_at
+            id, user_code, real_name, nickname, mobile, header_id,
+            doctor_cert_file_id, id_card_front_file_id, id_card_back_file_id,
+            hospital_id, dept_id, identity_type, doctor_cert_no, id_card_no,
+            status, version, is_deleted, created_at, updated_at
         FROM user_info
         WHERE id = ? AND is_deleted = 0
         "#,
@@ -162,6 +168,33 @@ pub async fn find_user_profile_by_id(
     .bind(id)
     .fetch_optional(db)
     .await?)
+}
+
+/// 判断文件是否绑定在指定用户的头像或证件字段上。
+pub async fn is_user_profile_file(
+    db: &MySqlPool,
+    user_id: u64,
+    file_id: u64,
+) -> Result<bool, AppError> {
+    let exists: i64 = sqlx::query_scalar(
+        r#"
+        SELECT EXISTS(
+            SELECT 1
+            FROM user_info
+            WHERE id = ?
+              AND is_deleted = 0
+              AND ? IN (
+                  header_id, doctor_cert_file_id,
+                  id_card_front_file_id, id_card_back_file_id
+              )
+        )
+        "#,
+    )
+    .bind(user_id)
+    .bind(file_id)
+    .fetch_one(db)
+    .await?;
+    Ok(exists == 1)
 }
 
 /// 按条件查询数据库记录。
@@ -215,7 +248,9 @@ pub async fn update_user_profile(
         r#"
         UPDATE user_info
         SET
-            user_code = ?, real_name = ?, nickname = ?, mobile = ?, header_id = ?, hospital_id = ?, dept_id = ?,
+            user_code = ?, real_name = ?, nickname = ?, mobile = ?, header_id = ?,
+            doctor_cert_file_id = ?, id_card_front_file_id = ?, id_card_back_file_id = ?,
+            hospital_id = ?, dept_id = ?,
             identity_type = ?, doctor_cert_no = ?, id_card_no = ?,
             status = COALESCE(?, status), version = COALESCE(?, version)
         WHERE id = ? AND is_deleted = 0
@@ -226,6 +261,9 @@ pub async fn update_user_profile(
     .bind(&req.nickname)
     .bind(&req.mobile)
     .bind(req.header_id)
+    .bind(req.doctor_cert_file_id)
+    .bind(req.id_card_front_file_id)
+    .bind(req.id_card_back_file_id)
     .bind(req.hospital_id)
     .bind(req.dept_id)
     .bind(&req.identity_type)
@@ -292,8 +330,10 @@ pub async fn page_user_profiles(
     let offset = (page - 1) * size;
 
     let mut data_query = QueryBuilder::<MySql>::new(
-        "SELECT id, user_code, real_name, nickname, mobile, header_id, hospital_id, dept_id, identity_type, \
-         doctor_cert_no, id_card_no, status, version, is_deleted, created_at, updated_at \
+        "SELECT id, user_code, real_name, nickname, mobile, header_id, \
+         doctor_cert_file_id, id_card_front_file_id, id_card_back_file_id, \
+         hospital_id, dept_id, identity_type, doctor_cert_no, id_card_no, \
+         status, version, is_deleted, created_at, updated_at \
          FROM user_info WHERE is_deleted = 0",
     );
     push_profile_filters(&mut data_query, &query);
@@ -478,11 +518,12 @@ pub async fn insert_wechat_user(
         r#"
         INSERT INTO user_info (
             user_code, real_name, nickname, mobile, header_id,
+            doctor_cert_file_id, id_card_front_file_id, id_card_back_file_id,
             hospital_id, dept_id, identity_type,
             doctor_cert_no, id_card_no,
             status, version, is_deleted
         )
-        VALUES (?, ?, ?, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, 0, 0)
+        VALUES (?, ?, ?, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, 0, 0)
         "#,
     )
     .bind(user_code)
@@ -561,9 +602,10 @@ pub async fn insert_wechat_account(
                 hospital_id, dept_id, identity_type,
                 doctor_cert_no, id_card_no,
                 mobile, header_id,
+                doctor_cert_file_id, id_card_front_file_id, id_card_back_file_id,
                 status, version, is_deleted
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, 0)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, 0)
             "#,
     )
     .bind(user_code)
@@ -576,6 +618,9 @@ pub async fn insert_wechat_account(
     .bind(&req.id_card_no)
     .bind(&req.mobile)
     .bind(req.header_id)
+    .bind(req.doctor_cert_file_id)
+    .bind(req.id_card_front_file_id)
+    .bind(req.id_card_back_file_id)
     .execute(&mut *tx)
     .await?;
 

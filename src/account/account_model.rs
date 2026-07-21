@@ -77,6 +77,12 @@ pub struct UserProfile {
 
     /// 用户头像对应的 file_object.id。
     pub header_id: Option<u64>,
+    /// 医疗从业资格证文件。
+    pub doctor_cert_file_id: Option<u64>,
+    /// 身份证人像面文件。
+    pub id_card_front_file_id: Option<u64>,
+    /// 身份证国徽面文件。
+    pub id_card_back_file_id: Option<u64>,
 
     pub status: i32,
     pub version: i32,
@@ -124,6 +130,9 @@ pub struct CreateAccountReq {
     pub nickname: Option<String>,
     pub mobile: Option<String>,
     pub header_id: Option<u64>,
+    pub doctor_cert_file_id: Option<u64>,
+    pub id_card_front_file_id: Option<u64>,
+    pub id_card_back_file_id: Option<u64>,
     pub hospital_id: Option<u64>,
     pub dept_id: Option<u64>,
     pub identity_type: Option<String>,
@@ -151,6 +160,9 @@ pub struct UpdateUserProfileReq {
     pub nickname: Option<String>,
     pub mobile: Option<String>,
     pub header_id: Option<u64>,
+    pub doctor_cert_file_id: Option<u64>,
+    pub id_card_front_file_id: Option<u64>,
+    pub id_card_back_file_id: Option<u64>,
     pub hospital_id: Option<u64>,
     pub dept_id: Option<u64>,
     pub identity_type: Option<String>,

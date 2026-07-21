@@ -1,13 +1,14 @@
 use crate::account::account_model::RegisterResp;
 use crate::account::account_service;
+use crate::file::{file_service, file_storage};
 use crate::state::AppState;
 use crate::wechat::wechat_model::{
     WechatCheckSignatureQuery, WechatLoginStatusResponse, WechatOAuthCallbackQuery,
-    WechatQrResponse, WechatQrcodeRegisterReq,
+    WechatQrResponse, WechatQrcodeRegisterReq, WechatRegisterFileKind, WechatRegisterFileResp,
 };
 use crate::wechat::wechat_service;
 use crate::{error::AppError, wechat::wechat_model::WechatOAuthAuthorizeQuery};
-use axum::extract::Path;
+use axum::extract::{Multipart, Path};
 use axum::response::{Html, Redirect};
 use axum::{
     extract::{Query, State},
@@ -243,6 +244,9 @@ pub async fn qrcode_register(
         dept_id = ?req.dept_id,
         mobile = ?req.mobile,
         header_id = ?req.header_id,
+        doctor_cert_file_id = ?req.doctor_cert_file_id,
+        id_card_front_file_id = ?req.id_card_front_file_id,
+        id_card_back_file_id = ?req.id_card_back_file_id,
         doctor_cert_no = ?req.doctor_cert_no,
         id_card_no = ?req.id_card_no,
         "wechat qrcode registration request received"
@@ -252,4 +256,156 @@ pub async fn qrcode_register(
 
     tracing::info!("wechat qrcode registration request completed");
     Ok(Json(result))
+}
+
+/// 上传扫码注册阶段使用的头像或证件文件。
+///
+/// registerToken 将文件绑定到当前微信注册上下文，注册提交时只能引用这里上传的文件 ID。
+pub async fn qrcode_upload_file(
+    State(state): State<AppState>,
+    mut multipart: Multipart,
+) -> Result<Json<WechatRegisterFileResp>, AppError> {
+    let mut register_token = None;
+    let mut kind = None;
+
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|error| AppError::BadRequest(format!("读取上传表单失败: {error}")))?
+    {
+        match field.name().unwrap_or_default() {
+            "registerToken" => register_token = Some(field.text().await.map_err(bad_upload)?),
+            "kind" => kind = Some(field.text().await.map_err(bad_upload)?),
+            "file" => {
+                // 流式 Multipart 的文件字段不能暂存后再读取，因此要求前端先提交注册凭证和用途。
+                let register_token = register_token
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+                    .ok_or_else(|| {
+                        AppError::BadRequest("registerToken 字段必须位于 file 字段之前".to_string())
+                    })?;
+                uuid::Uuid::parse_str(register_token)
+                    .map_err(|_| AppError::Unauthorized("微信注册凭证无效或已过期".to_string()))?;
+                let kind = kind
+                    .as_deref()
+                    .and_then(WechatRegisterFileKind::parse)
+                    .ok_or_else(|| {
+                        AppError::BadRequest("kind 字段必须位于 file 字段之前".to_string())
+                    })?;
+                let file_name = field.file_name().unwrap_or("upload.bin").to_string();
+                let mime_type = field
+                    .content_type()
+                    .unwrap_or("application/octet-stream")
+                    .to_string();
+                validate_register_upload(kind, &mime_type)?;
+
+                // 必须先确认 registerToken 仍有效，再向共享目录写文件。
+                let mut context = crate::wechat::wechat_cache::get_wechat_register_context(
+                    &state,
+                    register_token,
+                )
+                .await?
+                .ok_or_else(|| AppError::Unauthorized("微信注册凭证无效或已过期".to_string()))?;
+
+                tracing::info!(
+                    session_id = %context.session_id,
+                    register_token = %register_token,
+                    kind = kind.as_str(),
+                    file_name = %file_name,
+                    mime_type = %mime_type,
+                    "wechat registration file upload received"
+                );
+
+                let stored_file =
+                    file_storage::save_uploaded_file(field, &state.file_storage).await?;
+                let file = file_service::create_uploaded_file_object(&state, stored_file).await?;
+                let previous_file_id = context
+                    .uploaded_files
+                    .insert(kind.as_str().to_string(), file.id);
+
+                if let Err(error) = crate::wechat::wechat_cache::set_wechat_register_context(
+                    &state,
+                    register_token,
+                    &context,
+                )
+                .await
+                {
+                    tracing::error!(
+                        session_id = %context.session_id,
+                        file_id = file.id,
+                        error = %error,
+                        "wechat register context update failed, rollback uploaded file"
+                    );
+                    if let Err(cleanup_error) =
+                        file_service::delete_file_object(&state, file.id).await
+                    {
+                        tracing::error!(
+                            file_id = file.id,
+                            error = %cleanup_error,
+                            "wechat registration file rollback failed"
+                        );
+                    }
+                    return Err(error);
+                }
+
+                // 同一用途重复上传时，缓存已指向新文件，旧的临时注册文件可以安全清理。
+                if let Some(previous_file_id) = previous_file_id.filter(|id| *id != file.id) {
+                    if let Err(error) =
+                        file_service::delete_file_object(&state, previous_file_id).await
+                    {
+                        tracing::warn!(
+                            session_id = %context.session_id,
+                            kind = kind.as_str(),
+                            previous_file_id,
+                            error = %error,
+                            "previous wechat registration file cleanup failed"
+                        );
+                    }
+                }
+
+                tracing::info!(
+                    session_id = %context.session_id,
+                    register_token = %register_token,
+                    kind = kind.as_str(),
+                    file_id = file.id,
+                    file_name = %file.file_name,
+                    file_url = %file.file_url,
+                    mime_type = ?file.mime_type,
+                    file_size = ?file.file_size,
+                    sha256 = ?file.sha256,
+                    "wechat registration file upload completed"
+                );
+                return Ok(Json(WechatRegisterFileResp {
+                    file_id: file.id,
+                    file_name: file.file_name,
+                    kind: kind.as_str().to_string(),
+                }));
+            }
+            _ => {}
+        }
+    }
+
+    Err(AppError::BadRequest(
+        "上传请求中缺少 file 文件字段".to_string(),
+    ))
+}
+
+fn bad_upload(error: axum::extract::multipart::MultipartError) -> AppError {
+    AppError::BadRequest(format!("读取上传文件失败: {error}"))
+}
+
+fn validate_register_upload(kind: WechatRegisterFileKind, mime_type: &str) -> Result<(), AppError> {
+    let is_image = matches!(mime_type, "image/jpeg" | "image/png" | "image/webp");
+    if kind == WechatRegisterFileKind::Avatar && !is_image {
+        return Err(AppError::BadRequest(
+            "头像只支持 JPG、PNG 或 WebP 图片".to_string(),
+        ));
+    }
+    if !is_image && mime_type != "application/pdf" {
+        return Err(AppError::BadRequest(
+            "证件只支持 JPG、PNG、WebP 或 PDF".to_string(),
+        ));
+    }
+    Ok(())
 }

@@ -21,6 +21,11 @@ async fn main() -> anyhow::Result<()> {
     // Settings 负责把环境变量收敛成一个配置结构体，避免在业务代码里到处读 env。
     let settings = Settings::from_env()?;
 
+    // 启动阶段提前创建共享上传目录，权限或挂载错误可以尽早暴露。
+    tokio::fs::create_dir_all(&settings.file_storage.root_dir)
+        .await
+        .context("create file storage root failed")?;
+
     // MySqlPool 是 SQLx 的连接池，Clone 成本很低，内部共享真实连接池。
     let db = MySqlPoolOptions::new()
         .max_connections(settings.mysql_max_connections)
@@ -49,6 +54,7 @@ async fn main() -> anyhow::Result<()> {
         redis,
         jwt: JwtKeys::from_settings(&settings)?,
         http,
+        file_storage: settings.file_storage,
         tencent_live_credential: settings.tencent_live_credential,
         tencent_live_url_config: settings.tencent_live_url_config,
         tencent_live_license_config: settings.tencent_live_license_config,

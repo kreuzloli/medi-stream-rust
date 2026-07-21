@@ -8,6 +8,8 @@ pub fn router(state: AppState) -> Router {
     let protected_routes = Router::new()
         .merge(crate::auth::routes())
         .merge(crate::account::routes())
+        .merge(crate::file::routes())
+        .merge(crate::live::routes())
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             authenticate_user,

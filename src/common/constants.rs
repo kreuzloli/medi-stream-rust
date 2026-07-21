@@ -29,6 +29,13 @@ pub mod env {
     pub const HTTP_TIMEOUT_SECONDS: &str = "HTTP_TIMEOUT_SECONDS";
     pub const DEFAULT_HTTP_TIMEOUT_SECONDS: &str = "10";
 
+    /// 本地文件存储配置。主站和管理端部署在同一台服务器时使用同一组配置。
+    pub const FILE_STORAGE_ROOT: &str = "FILE_STORAGE_ROOT";
+    pub const DEFAULT_FILE_STORAGE_ROOT: &str = "/var/lib/medi-stream/uploads";
+    pub const FILE_PUBLIC_PREFIX: &str = "FILE_PUBLIC_PREFIX";
+    pub const DEFAULT_FILE_PUBLIC_PREFIX: &str = "/uploads";
+    pub const FILE_MAX_SIZE_BYTES: &str = "FILE_MAX_SIZE_BYTES";
+    pub const DEFAULT_FILE_MAX_SIZE_BYTES: u64 = 100 * 1024 * 1024;
     /// 腾讯云直播 API 凭证。
     pub const TENCENT_LIVE_SECRET_ID: &str = "TENCENT_LIVE_SECRET_ID";
     pub const TENCENT_LIVE_SECRET_KEY: &str = "TENCENT_LIVE_SECRET_KEY";
@@ -288,6 +295,8 @@ pub mod route {
     pub const ACCOUNT_BIND_LOGIN: &str = "/account/bind/login";
     /// 解除当前用户指定登录方式的绑定。
     pub const ACCOUNT_UNBIND: &str = "/account/unbind/:login_id";
+    /// 读取当前用户有权访问的头像或证件文件。
+    pub const ACCOUNT_FILE_CONTENT: &str = "/files/:file_id/content";
 
     /// 查询全部启用的科室。
     pub const CATALOG_DEPARTMENTS: &str = "/catalog/departments";
@@ -307,6 +316,8 @@ pub mod route {
     pub const LIVE_STREAM_STATE: &str = "/live/stream-state";
     /// 获取前端播放器所需的腾讯云 License 配置。
     pub const LIVE_LICENSE: &str = "/live/license";
+    /// 按房间编码读取可播放的直播信息，仅允许登录用户访问。
+    pub const LIVE_WATCH_BY_ROOM_CODE: &str = "/live/watch/:room_code";
 
     /// 验证微信服务器回调请求的签名。
     pub const WECHAT_CALLBACK: &str = "/wechat/callback";
@@ -331,4 +342,16 @@ pub mod route {
 
     /// 使用微信扫码注册凭证完善资料并创建账号。
     pub const AUTH_WECHAT_QRCODE_REGISTER: &str = "/wechat/qrcode/register";
+
+    /// 扫码注册阶段上传头像或证件文件。
+    pub const AUTH_WECHAT_QRCODE_FILE: &str = "/wechat/qrcode/file";
+
+    /// 分页查询文件或创建文件记录。
+    pub const FILES: &str = "/files";
+
+    /// 查询或删除指定文件记录。
+    pub const FILE_BY_ID: &str = "/files/:id";
+
+    /// 上传文件到本地磁盘，并自动创建文件记录。
+    pub const FILE_UPLOAD: &str = "/files/upload";
 }

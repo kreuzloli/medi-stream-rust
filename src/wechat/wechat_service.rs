@@ -16,6 +16,7 @@ use crate::wechat::wechat_model::{
     WechatOAuthAccessTokenResp, WechatQrResponse, WechatQrcodeRegisterReq, WechatRegisterContext,
 };
 use sha1::{Digest, Sha1};
+use std::collections::BTreeMap;
 
 /// 给业务层使用：获取微信 access_token。
 ///
@@ -513,6 +514,7 @@ pub async fn complete_qrcode_login(
         session_id: session_id.clone(),
         openid: open_id,
         unionid: union_id,
+        uploaded_files: BTreeMap::new(),
     };
     // 先保存注册上下文，再把凭证返回给轮询端，避免前端拿到无效凭证。
     wechat_cache::set_wechat_register_context(state, &register_token, &register_context).await?;
@@ -543,6 +545,7 @@ pub async fn register_qrcode_account(
     let context = wechat_cache::get_wechat_register_context(state, &register_token)
         .await?
         .ok_or_else(|| AppError::Unauthorized("微信注册凭证无效或已过期".to_string()))?;
+    validate_register_file_ids(&context, &req)?;
     tracing::info!(
         session_id = %context.session_id,
         "wechat qrcode account registration started"
@@ -610,4 +613,34 @@ pub async fn register_qrcode_account(
         "wechat qrcode account registration completed"
     );
     Ok(RegisterResp { token })
+}
+
+/// 确保资料中的文件 ID 都来自当前一次性注册凭证的上传记录。
+fn validate_register_file_ids(
+    context: &WechatRegisterContext,
+    req: &WechatQrcodeRegisterReq,
+) -> Result<(), AppError> {
+    let expected = [
+        ("avatar", req.header_id),
+        ("doctor_cert", req.doctor_cert_file_id),
+        ("id_card_front", req.id_card_front_file_id),
+        ("id_card_back", req.id_card_back_file_id),
+    ];
+    for (kind, file_id) in expected {
+        if let Some(file_id) = file_id {
+            if context.uploaded_files.get(kind) != Some(&file_id) {
+                tracing::warn!(
+                    session_id = %context.session_id,
+                    kind,
+                    file_id,
+                    uploaded_file_id = ?context.uploaded_files.get(kind),
+                    "wechat registration referenced an unbound file"
+                );
+                return Err(AppError::BadRequest(
+                    "上传文件与当前注册会话不匹配".to_string(),
+                ));
+            }
+        }
+    }
+    Ok(())
 }

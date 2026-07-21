@@ -4,6 +4,15 @@ use crate::tencent_cloud::tencent_live_model::LiveUrlConfig;
 use crate::tencent_cloud::tencent_live_signer::LiveCredential;
 use anyhow::{Context, Result};
 use std::env;
+use std::path::PathBuf;
+
+/// 本地文件存储配置，与管理端使用相同环境变量，确保两套服务共享磁盘目录。
+#[derive(Debug, Clone)]
+pub struct FileStorageConfig {
+    pub root_dir: PathBuf,
+    pub public_prefix: String,
+    pub max_size_bytes: u64,
+}
 
 #[derive(Debug, Clone)]
 pub struct Settings {
@@ -15,6 +24,7 @@ pub struct Settings {
     pub jwt_ttl_seconds: i64,
     pub mysql_max_connections: u32,
     pub http_timeout_seconds: u64,
+    pub file_storage: FileStorageConfig,
     pub tencent_live_credential: Option<LiveCredential>,
     pub tencent_live_url_config: Option<LiveUrlConfig>,
     pub tencent_live_license_config: Option<LiveLicenseConfig>,
@@ -66,6 +76,8 @@ impl Settings {
                 .parse()
                 .context("invalid HTTP_TIMEOUT_SECONDS")?,
 
+            file_storage: file_storage_config_from_env()?,
+
             tencent_live_credential: live_credential_from_env()?,
             tencent_live_url_config: live_url_config_from_env()?,
             tencent_live_license_config: live_license_config_from_env()?,
@@ -86,6 +98,38 @@ impl Settings {
             ),
         })
     }
+}
+
+/// 读取并校验本地文件存储配置，避免相对路径和危险 URL 前缀进入运行时。
+fn file_storage_config_from_env() -> Result<FileStorageConfig> {
+    let root_dir = PathBuf::from(
+        env::var(env_constants::FILE_STORAGE_ROOT)
+            .unwrap_or_else(|_| env_constants::DEFAULT_FILE_STORAGE_ROOT.to_string()),
+    );
+    if root_dir.as_os_str().is_empty() || !root_dir.is_absolute() {
+        anyhow::bail!("FILE_STORAGE_ROOT must be a non-empty absolute path");
+    }
+
+    let public_prefix = env::var(env_constants::FILE_PUBLIC_PREFIX)
+        .unwrap_or_else(|_| env_constants::DEFAULT_FILE_PUBLIC_PREFIX.to_string());
+    let public_prefix = format!("/{}", public_prefix.trim().trim_matches('/'));
+    if public_prefix == "/" || public_prefix.split('/').any(|segment| segment == "..") {
+        anyhow::bail!("FILE_PUBLIC_PREFIX must be a safe non-root path");
+    }
+
+    let max_size_bytes = env::var(env_constants::FILE_MAX_SIZE_BYTES)
+        .unwrap_or_else(|_| env_constants::DEFAULT_FILE_MAX_SIZE_BYTES.to_string())
+        .parse::<u64>()
+        .context("invalid FILE_MAX_SIZE_BYTES")?;
+    if max_size_bytes == 0 {
+        anyhow::bail!("FILE_MAX_SIZE_BYTES must be greater than 0");
+    }
+
+    Ok(FileStorageConfig {
+        root_dir,
+        public_prefix,
+        max_size_bytes,
+    })
 }
 
 /// 读取 Web 播放器 License 配置；URL 和 Key 必须成对配置。
